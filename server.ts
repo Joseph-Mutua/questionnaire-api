@@ -33,13 +33,10 @@ app.use(express.json());
 app.use("/api/v1/user", userRoutes);
 app.use("/api/v1/form", formRoutes);
 
+
 runMigrations();
 connectDB()
   .then(() => {
-    app.get("/", (req: Request, res: Response) => {
-      res.send("Express + TypeScript Server");
-    });
-
     app.listen(port, () => {
       console.log(`[server]: Server is running at http://localhost:${port}`);
     });

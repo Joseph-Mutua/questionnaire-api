@@ -1,13 +1,18 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import { pool } from "../config/db";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+
+//Error handler
+import { catchAsyncErrors } from "../middleware/catchAsyncErrors";
+import ErrorHandler from "../utils/ErrorHandler";
+
+
 
 export const register = async (req: Request, res: Response) => {
   const { email, password } = req.body;
   const hashedPassword = await bcrypt.hash(password, 10);
   const client = await pool.connect();
-
   try {
     await client.query("BEGIN");
     const insertUserText =
@@ -40,20 +45,23 @@ export const login = async (req: Request, res: Response) => {
 
     const user = result.rows[0];
     const validPassword = await bcrypt.compare(password, user.password);
+
     if (!validPassword) {
       return res.status(401).send("Invalid credentials");
     }
 
     const token = generateToken(user.id);
     res.send({ user: { id: user.id, email }, token });
+    
   } catch (error) {
     const errorMessage = (error as Error).message;
     res.status(500).send(errorMessage);
   }
+
 };
 
 function generateToken(userId: number) {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET!, {
-    expiresIn: "24h",
+    expiresIn: "1h",
   });
 }

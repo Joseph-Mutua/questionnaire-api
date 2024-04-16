@@ -1,0 +1,76 @@
+{
+  "formId": "string",
+  "info":{
+  "title": "string",
+  "documentTitle": "string",
+  "description": "string"
+},
+  "settings": {
+  "quizSettings": {
+  "isQuiz": "boolean"
+}
+},
+  "items": [
+   {
+  "itemId": "string",
+  "title": "string",
+  "description": "string",
+  
+  "questionItem":{
+  "question": {
+  "questionId": "string",
+  "required": "boolean",
+  "grading": {
+    object (Grading)
+  },
+
+  // Union field kind can be only one of the following:
+  "choiceQuestion": {
+    object (ChoiceQuestion)
+  },
+  "textQuestion": {
+    object (TextQuestion)
+  },
+  "scaleQuestion": {
+    object (ScaleQuestion)
+  },
+  "dateQuestion": {
+    object (DateQuestion)
+  },
+  "timeQuestion": {
+    object (TimeQuestion)
+  },
+  "fileUploadQuestion": {
+    object (FileUploadQuestion)
+  },
+  "rowQuestion": {
+    object (RowQuestion)
+  }
+  // End of list of possible types for union field kind.
+},
+  "image": {
+    object (Image)
+  }
+},
+  "questionGroupItem": {
+    object (QuestionGroupItem)
+  },
+  "pageBreakItem": {
+    object (PageBreakItem)
+  },
+  "textItem": {
+    object (TextItem)
+  },
+  "imageItem": {
+    object (ImageItem)
+  },
+  "videoItem": {
+    object (VideoItem)
+  }
+  // End of list of possible types for union field kind.
+}
+  ],
+  "revisionId": string,
+  "responderUri": string,
+  "linkedSheetId": string
+}
