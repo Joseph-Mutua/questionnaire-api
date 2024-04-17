@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS navigationRules (
     ruleId SERIAL PRIMARY KEY,
     sectionId VARCHAR NOT NULL,
     targetSectionId VARCHAR NOT NULL,
-    condition TEXT,  -- could use JSON to define conditions based on answers
+    condition TEXT,  -- JSON to define conditions based on answers
     FOREIGN KEY (sectionId) REFERENCES sections(sectionId),
     FOREIGN KEY (targetSectionId) REFERENCES sections(sectionId)
 );
