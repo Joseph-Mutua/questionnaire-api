@@ -1,19 +1,10 @@
 import { Router } from "express";
-import {
-  getForms,
-  createForm,
-  updateForm,
-  deleteForm,
-} from "../controllers/formController";
+import { createForm } from "../controllers/formController";
+import { authenticateUser } from "../middleware/auth";
 
 const router = Router();
 
-router.get("/", getForms);
 
-router.post("/", createForm);
-
-router.put("/:id", updateForm);
-
-router.delete("/:id", deleteForm);
+router.post("/", authenticateUser, createForm);
 
 export default router;
