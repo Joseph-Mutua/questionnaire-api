@@ -10,7 +10,7 @@
 // export interface Section {
 //   title: string;
 //   description?: string;
-//   seqOrder: number;
+//   seq_order: number;
 // }
 
 // export interface Form {
@@ -23,25 +23,25 @@
 // src/types.ts
 
 export type QuizSettings = {
-    isQuiz: boolean;
+  is_quiz: boolean;
 };
 
 export type Section = {
-    title: string;
-    description: string;
-    seqOrder: number;
-    items: Item[];
+  title: string;
+  description: string;
+  seq_order: number;
+  items: Item[];
 };
 
 export type Item = {
-    title: string;
-    description: string;
-    kind: string;
-    question?: Question;
+  title: string;
+  description: string;
+  kind: string;
+  question?: Question;
 };
 
 export type Question = {
-    questionId: string;
-    required: boolean;
-    kind: string;
+  question_id: string;
+  required: boolean;
+  kind: string;
 };

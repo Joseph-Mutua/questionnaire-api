@@ -2,32 +2,36 @@ import { Response, Request } from "express";
 import { pool } from "../config/db";
 import { QuizSettings, Section } from "../types";
 
-export type UserRequest = Request & { user?: { userId: string } };
+export type AuthRequest = Request & { user?: { userId: string } };
 
-export const createForm = async (req: UserRequest, res: Response) => {
-  const userId = req.user?.userId;
+export const createForm = async (req: AuthRequest, res: Response) => {
+  const user_id = req.user?.userId;
   const { title } = req.body;
 
-  if (!userId) {
+  if (!user_id) {
     return res.status(403).json({ error: "User must be logged in." });
   }
+
   try {
     await pool.query("BEGIN");
 
-    const formInfoQuery =
-      "INSERT INTO formInfo(title, description) VALUES($1, $2) RETURNING infoId";
-    const formInfoValues = [title, ""];
-    const formInfoResult = await pool.query(formInfoQuery, formInfoValues);
+    const form_info_query =
+      "INSERT INTO form_info(title, description) VALUES($1, $2) RETURNING info_id";
+    const form_info_values = [title, ""];
+    const form_info_result = await pool.query(
+      form_info_query,
+      form_info_values
+    );
 
-    const formsQuery =
-      "INSERT INTO forms(ownerId, infoId, revisionId, u, settingsId) VALUES($1, $2, 'v1.0', '', $3) RETURNING formId";
-    const formsValues = [userId, formInfoResult.rows[0].infoid, null];
-    const formResult = await pool.query(formsQuery, formsValues);
+    const forms_query =
+      "INSERT INTO forms(owner_id, info_id, revision_id, responder_uri, settings_id) VALUES($1, $2, 'v1.0', '', NULL) RETURNING form_id";
+    const forms_values = [user_id, form_info_result.rows[0].info_id];
+    const form_result = await pool.query(forms_query, forms_values);
 
     await pool.query("COMMIT");
     res.status(201).json({
       message: "Form created successfully",
-      formId: formResult.rows[0].formid,
+      formId: form_result.rows[0].form_id,
     });
   } catch (error) {
     await pool.query("ROLLBACK");
@@ -36,94 +40,84 @@ export const createForm = async (req: UserRequest, res: Response) => {
   }
 };
 
-export const updateForm = async (req: UserRequest, res: Response) => {
-  const userId = req.user?.userId;
-  const formId = parseInt(req.params.id);
+export const updateForm = async (req: AuthRequest, res: Response) => {
+  const user_id = req.user?.userId;
+  const form_id = parseInt(req.params.id);
   const {
     sections,
     settings,
   }: { sections: Section[]; settings?: QuizSettings } = req.body;
 
-  if (!userId) {
+  if (!user_id) {
     return res.status(403).json({ error: "User must be logged in." });
   }
-  if (!formId) {
+  if (!form_id) {
     return res.status(400).json({ error: "Invalid form ID." });
   }
 
   try {
     await pool.query("BEGIN");
 
+
     if (settings) {
-      const quizSettingsQuery =
-        "INSERT INTO quizSettings(isQuiz) VALUES ($1) RETURNING quizSettingsId";
-      const quizSettingsResult = await pool.query(quizSettingsQuery, [
-        settings.isQuiz,
+      const quiz_settings_query =
+        "INSERT INTO quiz_settings(is_quiz) VALUES ($1) RETURNING quiz_settings_id";
+      const quiz_settings_result = await pool.query(quiz_settings_query, [
+        settings.is_quiz,
       ]);
 
-      const formSettingsQuery =
-        "UPDATE formSettings SET quizSettingsId = $1 WHERE settingsId = (SELECT settingsId FROM forms WHERE formId = $2)";
-      await pool.query(formSettingsQuery, [
-        quizSettingsResult.rows[0].quizsettingsid,
-        formId,
+      const form_settings_query =
+        "UPDATE form_settings SET quiz_settings_id = $1 WHERE settings_id = (SELECT settings_id FROM forms WHERE form_id = $2)";
+      await pool.query(form_settings_query, [
+        quiz_settings_result.rows[0].quiz_settings_id,
+        form_id,
       ]);
     }
 
+
+    
     for (const section of sections) {
-      const sectionQuery =
-        "INSERT INTO sections(formId, title, description, seqOrder) VALUES($1, $2, $3, $4) RETURNING sectionId";
-      const sectionValues = [
-        formId,
+      const section_query =
+        "INSERT INTO sections(form_id, title, description, seq_order) VALUES($1, $2, $3, $4) RETURNING section_id";
+      const section_values = [
+        form_id,
         section.title,
         section.description,
-        section.seqOrder,
+        section.seq_order,
       ];
-      const sectionResult = await pool.query(sectionQuery, sectionValues);
+      const section_result = await pool.query(section_query, section_values);
 
-      if (sectionResult.rows.length === 0) {
-        throw new Error("Failed to insert section, no section ID returned.");
-      }
-
-      const sectionId = sectionResult.rows[0].sectionid;
+      const section_id = section_result.rows[0].section_id;
 
       for (const item of section.items) {
-        const itemQuery =
-          "INSERT INTO items(formId,  title, description, kind) VALUES($1, $2, $3, $4) RETURNING itemId";
-        const itemValues = [formId, item.title, item.description, item.kind];
-        const itemResult = await pool.query(itemQuery, itemValues);
-
-        if (itemResult.rows.length === 0) {
-          throw new Error("Failed to insert item, no item ID returned.");
-        }
+        const item_query =
+          "INSERT INTO items(form_id, title, description, kind) VALUES($1, $2, $3, $4) RETURNING item_id";
+        const item_values = [form_id, item.title, item.description, item.kind];
+        const item_result = await pool.query(item_query, item_values);
 
         if (item.kind === "questionItem" && item.question) {
-          const questionQuery =
-            "INSERT INTO questions( required, kind) VALUES($1, $2) RETURNING questionId";
-          const questionValues = [item.question.required, item.question.kind];
-          const questionResult = await pool.query(
-            questionQuery,
-            questionValues
+          const question_query =
+            "INSERT INTO questions(required, kind) VALUES($1, $2) RETURNING question_id";
+          const question_values = [item.question.required, item.question.kind];
+          const question_result = await pool.query(
+            question_query,
+            question_values
           );
 
-          if (questionResult.rows.length === 0) {
-            throw new Error(
-              "Failed to insert question, no question ID returned."
-            );
-          }
-
-          const questionItemQuery =
-            "INSERT INTO questionItems(itemId) VALUES($1)";
-          await pool.query(questionItemQuery, [itemResult.rows[0].itemid]);
+          const question_item_query =
+            "INSERT INTO question_items(item_id, question_id) VALUES($1, $2)";
+          await pool.query(question_item_query, [
+            item_result.rows[0].item_id,
+            question_result.rows[0].question_id,
+          ]);
         }
       }
     }
 
     await pool.query("COMMIT");
-
     res.status(200).json({
       message: "Form updated successfully",
-      formId: formId
-      //form: completeFormResult.rows[0],
+      formId: form_id,
     });
   } catch (error) {
     await pool.query("ROLLBACK");
@@ -131,4 +125,6 @@ export const updateForm = async (req: UserRequest, res: Response) => {
     const errorMessage = (error as Error).message;
     res.status(500).send(errorMessage);
   }
+
 };
+

@@ -4,7 +4,6 @@ import { authenticateUser } from "../middleware/auth";
 
 const router = Router();
 
-
 router.post("/", authenticateUser, createForm);
 router.patch("/forms/:id", authenticateUser, updateForm);
 

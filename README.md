@@ -3,11 +3,13 @@
 ## Entities and Attributes
 
 ### **Users**
+
 - `userId` (PK)
 - `email`
 - `password`
 
 ### **Forms**
+
 - `formId` (PK)
 - `ownerId` (FK to Users)
 - `infoId` (FK to FormInfo)
@@ -18,32 +20,38 @@
 - `updatedAt`
 
 ### **FormInfo**
+
 - `infoId` (PK)
 - `title`
 - `description`
 
 ### **Sections**
+
 - `sectionId` (PK)
 - `formId` (FK to Forms)
 - `title`
 - `description`
-- `seqOrder`
+- `seq_order`
 
 ### **NavigationRules**
+
 - `ruleId` (PK)
 - `sectionId` (FK to Sections)
 - `targetSectionId` (FK to Sections)
 - `condition`
 
 ### **FormSettings**
+
 - `settingsId` (PK)
 - `quizSettingsId` (FK to QuizSettings)
 
 ### **QuizSettings**
+
 - `quizSettingsId` (PK)
 - `isQuiz`
 
 ### **Items**
+
 - `itemId` (PK)
 - `formId` (FK to Forms)
 - `title`
@@ -51,21 +59,25 @@
 - `kind` (Check: 'questionItem', 'questionGroupItem', 'pageBreakItem', 'textItem', 'imageItem', 'videoItem')
 
 ### **Questions**
+
 - `questionId` (PK)
 - `required`
 - `kind` (Check: 'choiceQuestion', 'textQuestion', 'scaleQuestion', 'dateQuestion', 'timeQuestion', 'fileUploadQuestion', 'rowQuestion')
 - `gradingId` (FK to Gradings)
 
 ### **QuestionItems**
+
 - `itemId` (FK to Items, PK)
 - `questionId` (FK to Questions)
 
 ### **ChoiceQuestions**
+
 - `questionId` (FK to Questions, PK)
 - `type` (Check: 'RADIO', 'CHECKBOX', 'DROP_DOWN')
 - `shuffle`
 
 ### **Options**
+
 - `optionId` (PK)
 - `questionId` (FK to ChoiceQuestions)
 - `value`
@@ -75,6 +87,7 @@
 - `gotoSectionId`
 
 ### **Images**
+
 - `imageId` (PK)
 - `contentUri`
 - `altText`
@@ -82,6 +95,7 @@
 - `propertiesId` (FK to MediaProperties)
 
 ### **Gradings**
+
 - `gradingId` (PK)
 - `pointValue`
 - `whenRight` (FK to Feedbacks)
@@ -91,25 +105,30 @@
 - `autoFeedback`
 
 ### **Feedbacks**
+
 - `feedbackId` (PK)
 - `text`
 
 ### **CorrectAnswers**
+
 - `answerId` (PK)
 - `gradingId` (FK to Gradings)
 - `value`
 
 ### **MediaProperties**
+
 - `propertiesId` (PK)
 - `alignment` (Check: 'LEFT', 'RIGHT', 'CENTER')
 - `width` (Check: 0 <= width <= 740)
 
 ### **FormResponses**
+
 - `responseId` (PK)
 - `formId` (FK to Forms)
 - `createdAt`
 
 ### **Answers**
+
 - `answerId` (PK)
 - `responseId` (FK to FormResponses)
 - `questionId` (FK to Questions)
@@ -138,11 +157,12 @@
 Here is a simplified sketch of how these entities might be represented in an ERD:
 
 [Users] --< [Forms] --< [Sections] --< [NavigationRules]
-   |          |               |
-   |          |               >-- [Items] --< [QuestionItems] --< [Questions] --< [ChoiceQuestions] --< [Options] --< [Images] --< [MediaProperties]
-   |          |                                                                       |
-   |          >-- [FormInfo]                                                          >-- [Gradings] --< [Feedbacks]
-   |          |                                                                       |                |
-   |          >-- [FormSettings] --< [QuizSettings]                                   >-- [CorrectAnswers]
-   |                                                                                   |
-   >-- [FormResponses] --< [Answers]
+| | |
+| | >-- [Items] --< [QuestionItems] --< [Questions] --< [ChoiceQuestions] --< [Options] --< [Images] --< [MediaProperties]
+| | |
+| >-- [FormInfo] >-- [Gradings] --< [Feedbacks]
+| | | |
+| >-- [FormSettings] --< [QuizSettings] >-- [CorrectAnswers]
+| |
+
+> -- [FormResponses] --< [Answers]

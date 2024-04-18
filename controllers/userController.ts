@@ -14,7 +14,7 @@ export const register = async (req: Request, res: Response) => {
   try {
     await client.query("BEGIN");
     const insertUserText =
-      "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING userId, email";
+      "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING user_id, email";
     const insertUserValues = [email, hashedPassword];
     const result = await client.query(insertUserText, insertUserValues);
     await client.query("COMMIT");
@@ -33,7 +33,7 @@ export const register = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   const { email, password } = req.body;
   try {
-    const findUserText = "SELECT userId, password FROM users WHERE email = $1";
+    const findUserText = "SELECT user_id, password FROM users WHERE email = $1";
     const findUserValues = [email];
     const result = await pool.query(findUserText, findUserValues);
 
@@ -48,8 +48,8 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).send("Invalid Credentials");
     }
 
-    const token = generateToken(user.userid);
-    res.send({ user: { userId: user.userId, email }, token });
+    const token = generateToken(user.user_id);
+    res.send({ user: { userId: user.user_id, email }, token });
   } catch (error) {
     const errorMessage = (error as Error).message;
     res.status(500).send(errorMessage);
@@ -57,6 +57,5 @@ export const login = async (req: Request, res: Response) => {
 };
 
 export const generateToken = (userId: string) => {
-  console.log("🚀 ~ generateToken ~ userId:", userId)
   return jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: "1h" });
 };
