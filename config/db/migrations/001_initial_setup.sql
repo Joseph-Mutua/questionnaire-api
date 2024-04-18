@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS sections (
 
 -- Items: Individual elements (questions, text, images) within the form.
 CREATE TABLE IF NOT EXISTS items (
-    itemId VARCHAR PRIMARY KEY,
+    itemId SERIAL PRIMARY KEY,
     formId INTEGER NOT NULL,
     title VARCHAR,
     description TEXT,
@@ -127,7 +127,7 @@ CREATE TABLE IF NOT EXISTS questions (
 -- --TODO: ADD Image Items
 -- Links form items to their respective questions, enabling dynamic form structures.
 CREATE TABLE IF NOT EXISTS questionItems (
-    itemId VARCHAR PRIMARY KEY,
+    itemId SERIAL PRIMARY KEY,
     questionId VARCHAR NOT NULL,
     FOREIGN KEY (itemId) REFERENCES items(itemId),
     FOREIGN KEY (questionId) REFERENCES questions(questionId)
@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS options (
     imageId INTEGER, -- Image for option
     isOther BOOLEAN, -- If option is 'other'
     gotoAction VARCHAR CHECK (gotoAction IN ('NEXT_SECTION', 'RESTART_FORM', 'SUBMIT_FORM', 'GO_TO_ACTION_UNSPECIFIED')), -- Section navigation type
-    gotoSectionId VARCHAR, -- Section to navigate to if option is selected (RADIO AND SELECT)
+    gotoSectionId SERIAL, -- Section to navigate to if option is selected (RADIO AND SELECT)
     FOREIGN KEY (questionId) REFERENCES choiceQuestions(questionId),
     FOREIGN KEY (imageId) REFERENCES images(imageId)
 );
@@ -176,7 +176,7 @@ CREATE TABLE IF NOT EXISTS answers (
 CREATE TABLE IF NOT EXISTS navigationRules (
     ruleId SERIAL PRIMARY KEY,
     sectionId SERIAL NOT NULL,
-    targetSectionId VARCHAR NOT NULL,
+    targetSectionId SERIAL NOT NULL,
     condition TEXT,  -- JSON to define conditions based on answers
     FOREIGN KEY (sectionId) REFERENCES sections(sectionId),
     FOREIGN KEY (targetSectionId) REFERENCES sections(sectionId)
