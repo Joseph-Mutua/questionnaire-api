@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS items (
 
 -- Questions of various types that can be part of the form
 CREATE TABLE IF NOT EXISTS questions (
-    questionId VARCHAR PRIMARY KEY,
+    questionId SERIAL PRIMARY KEY,
     required BOOLEAN,
     kind VARCHAR NOT NULL CHECK (kind IN ('choiceQuestion', 'textQuestion', 'scaleQuestion', 'dateQuestion', 'timeQuestion', 'fileUploadQuestion', 'rowQuestion')),
     gradingId INTEGER,
@@ -128,14 +128,14 @@ CREATE TABLE IF NOT EXISTS questions (
 -- Links form items to their respective questions, enabling dynamic form structures.
 CREATE TABLE IF NOT EXISTS questionItems (
     itemId SERIAL PRIMARY KEY,
-    questionId VARCHAR NOT NULL,
+    questionId SERIAL NOT NULL,
     FOREIGN KEY (itemId) REFERENCES items(itemId),
     FOREIGN KEY (questionId) REFERENCES questions(questionId)
 );
 
 -- Specifics for choice-type questions, including options configuration.
 CREATE TABLE IF NOT EXISTS choiceQuestions (
-    questionId VARCHAR PRIMARY KEY,
+    questionId SERIAL PRIMARY KEY,
     type VARCHAR CHECK (type IN ('RADIO', 'CHECKBOX', 'DROP_DOWN', 'CHOICE_TYPE_UNSPECIFIED')),
     shuffle BOOLEAN,
     FOREIGN KEY (questionId) REFERENCES questions(questionId)
@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS choiceQuestions (
 -- Defines options for choice questions, including images and navigation actions.
 CREATE TABLE IF NOT EXISTS options (
     optionId SERIAL PRIMARY KEY,
-    questionId VARCHAR NOT NULL,
+    questionId SERIAL NOT NULL,
     value VARCHAR NOT NULL,
     imageId INTEGER, -- Image for option
     isOther BOOLEAN, -- If option is 'other'
@@ -166,7 +166,7 @@ CREATE TABLE IF NOT EXISTS formResponses (
 CREATE TABLE IF NOT EXISTS answers (
     answerId SERIAL PRIMARY KEY,
     responseId INTEGER NOT NULL,
-    questionId VARCHAR NOT NULL,
+    questionId SERIAL NOT NULL,
     value TEXT,  -- store answers as JSON or plain text
     FOREIGN KEY (responseId) REFERENCES formResponses(responseId),
     FOREIGN KEY (questionId) REFERENCES questions(questionId)
