@@ -77,8 +77,6 @@ CREATE TABLE IF NOT EXISTS forms (
 );
 
 
-
-
 -- Sections: manage different sections in the form
 CREATE TABLE IF NOT EXISTS sections (
     section_id SERIAL PRIMARY KEY,
@@ -86,16 +84,16 @@ CREATE TABLE IF NOT EXISTS sections (
     title VARCHAR NOT NULL,
     description TEXT,
     seq_order INTEGER,
+    UNIQUE(form_id, seq_order),  -- Assuming 'seq_order' should be unique per form
     FOREIGN KEY (form_id) REFERENCES forms(form_id)
 );
-
--- Items: Individual elements (questions, text, images) within the form.
 CREATE TABLE IF NOT EXISTS items (
     item_id SERIAL PRIMARY KEY,
     form_id INTEGER NOT NULL,
     title VARCHAR,
     description TEXT,
     kind VARCHAR NOT NULL CHECK (kind IN ('question_item', 'question_group_item', 'page_break_item', 'text_item', 'image_item')),
+    UNIQUE(form_id, title),  -- Assuming 'title' should be unique per form
     FOREIGN KEY (form_id) REFERENCES forms(form_id)
 );
 
@@ -104,8 +102,6 @@ CREATE TABLE IF NOT EXISTS items (
 -- --pageBreakItem: Starts a new page with a title.
 -- --textItem: Displays a title and description on the page.
 -- --imageItem: Displays an image on the page.
-
-
 
 
  --TODO: ADD QuestionGroupItems // For a question with multiple Questions Grouped Together
