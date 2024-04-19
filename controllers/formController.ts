@@ -232,27 +232,29 @@ async function handleSection(pool: Pool, form_id: number, section: Section) {
   return sectionResult.rows[0].section_id;
 }
 
-async function handleItem(
-  pool: Pool,
-  form_id: number,
-  section_id: number,
-  item: Item
-) {
+async function handleItem(pool: Pool, form_id: number, section_id: number, item: Item) {
   const itemResult = await pool.query(
-    "INSERT INTO items (form_id, section_id, title, description, kind) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (form_id, title) DO UPDATE SET section_id = EXCLUDED.section_id, description = EXCLUDED.description, kind = EXCLUDED.kind RETURNING item_id",
+    "INSERT INTO items (form_id, section_id, title, description, kind) VALUES ($1, $2, $3, $4, $5) " +
+      "ON CONFLICT (form_id, title) DO UPDATE SET description = EXCLUDED.description, kind = EXCLUDED.kind, section_id = EXCLUDED.section_id " +
+      "RETURNING item_id",
     [form_id, section_id, item.title, item.description, item.kind]
   );
+
   if (item.kind === "question_item" && item.question) {
     const questionResult = await pool.query(
       "INSERT INTO questions (required, kind) VALUES ($1, $2) RETURNING question_id",
       [item.question.required, item.question.kind]
     );
+
     await pool.query(
-      "INSERT INTO question_items (item_id, question_id) VALUES ($1, $2)",
+      "INSERT INTO question_items (item_id, question_id) VALUES ($1, $2) " +
+        "ON CONFLICT (item_id, question_id) DO UPDATE SET item_id = EXCLUDED.item_id, question_id = EXCLUDED.question_id",
       [itemResult.rows[0].item_id, questionResult.rows[0].question_id]
     );
   }
 }
+
+
 
 async function fetchFormDetails(pool: Pool, form_id: number) {
   const query = `
@@ -268,11 +270,11 @@ async function fetchFormDetails(pool: Pool, form_id: number) {
                     'title', i.title, 
                     'description', i.description, 
                     'kind', i.kind,
-                    'question', (SELECT json_build_object(
+                    'questions', (SELECT json_agg(json_build_object(
                         'question_id', q.question_id, 
                         'required', q.required, 
                         'kind', q.kind
-                    ) FROM questions q JOIN question_items qi ON q.question_id = qi.question_id WHERE qi.item_id = i.item_id)
+                    )) FROM questions q JOIN question_items qi ON q.question_id = qi.question_id WHERE qi.item_id = i.item_id)
                 )) FROM items i WHERE i.section_id = s.section_id)
             )) AS sections
         FROM forms f
@@ -284,5 +286,5 @@ async function fetchFormDetails(pool: Pool, form_id: number) {
         GROUP BY f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz;
     `;
   const details = await pool.query(query, [form_id]);
-  return details.rows[0];
+  return details.rows[0]; // Assuming there is always at least one form with the given ID
 }

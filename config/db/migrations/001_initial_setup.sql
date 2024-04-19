@@ -132,10 +132,11 @@ CREATE TABLE IF NOT EXISTS questions (
 
 -- Links form items to their respective questions, enabling dynamic form structures.
 CREATE TABLE IF NOT EXISTS question_items (
-    item_id SERIAL PRIMARY KEY,
-    question_id SERIAL NOT NULL,
-    FOREIGN KEY (item_id) REFERENCES items(item_id),
-    FOREIGN KEY (question_id) REFERENCES questions(question_id)
+    item_id INTEGER,
+    question_id INTEGER,
+    PRIMARY KEY (item_id, question_id),
+    FOREIGN KEY (item_id) REFERENCES items(item_id) ON DELETE CASCADE,
+    FOREIGN KEY (question_id) REFERENCES questions(question_id) ON DELETE CASCADE
 );
 
 -- Specifics for choice-type questions, including options configuration.
