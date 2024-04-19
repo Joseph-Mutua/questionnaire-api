@@ -87,13 +87,17 @@ CREATE TABLE IF NOT EXISTS sections (
     UNIQUE(form_id, seq_order),  -- Assuming 'seq_order' should be unique per form
     FOREIGN KEY (form_id) REFERENCES forms(form_id)
 );
+
+
 CREATE TABLE IF NOT EXISTS items (
     item_id SERIAL PRIMARY KEY,
     form_id INTEGER NOT NULL,
+    section_id INTEGER,
     title VARCHAR,
     description TEXT,
     kind VARCHAR NOT NULL CHECK (kind IN ('question_item', 'question_group_item', 'page_break_item', 'text_item', 'image_item')),
     UNIQUE(form_id, title),  -- Assuming 'title' should be unique per form
+    FOREIGN KEY (section_id) REFERENCES sections(section_id),
     FOREIGN KEY (form_id) REFERENCES forms(form_id)
 );
 
