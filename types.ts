@@ -23,14 +23,32 @@ export type QuizSettings = {
 //   kind: string;
 // };
 
+export interface Option {
+  value: string;
+  image_id?: number;
+  is_other?: boolean;
+  goto_action?: string;
+  goto_section_id?: number;
+}
 
+export interface QuestionOptions {
+  type: "RADIO" | "CHECKBOX" | "DROP_DOWN" | "CHOICE_TYPE_UNSPECIFIED";
+  shuffle: boolean;
+  choices: Option[];
+}
 
-
-// Define the basic structure for a question
 export interface Question {
   required: boolean;
-  kind: string;  // 'choice_question', 'text_question', etc.
-  grading?: Grading;  // Optional grading info
+  kind:
+    | "choice_question"
+    | "text_question"
+    | "scale_question"
+    | "date_question"
+    | "time_question"
+    | "file_upload_question"
+    | "row_question";
+  grading?: Grading;
+  options?: QuestionOptions; // Add this line to include options for choice questions
 }
 
 // Define the structure for grading details
@@ -62,3 +80,8 @@ export interface Section {
   items: Item[];
 }
 
+export interface FeedbackIds {
+  when_right: number | null;
+  when_wrong: number | null;
+  general_feedback: number | null;
+}
