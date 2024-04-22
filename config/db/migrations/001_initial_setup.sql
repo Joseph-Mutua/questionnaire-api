@@ -1,107 +1,124 @@
---Users who can create/share forms
+-- Users who can create/share forms
 CREATE TABLE IF NOT EXISTS users (
-    userId SERIAL PRIMARY KEY,
+    user_id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL
 );
 
---Info : Title and Description of the Form
-CREATE TABLE IF NOT EXISTS formInfo (
-    infoId SERIAL PRIMARY KEY,
+-- Info: Title and Description of the Form
+CREATE TABLE IF NOT EXISTS form_info (
+    info_id SERIAL PRIMARY KEY,
     title VARCHAR NOT NULL,
     description TEXT
 );
 
---Quiz Settings: Settings for Quiz Forms and Grading
-CREATE TABLE IF NOT EXISTS quizSettings (
-    quizSettingsId SERIAL PRIMARY KEY,
-    isQuiz BOOLEAN NOT NULL
+-- Quiz Settings: Settings for Quiz Forms and Grading
+CREATE TABLE IF NOT EXISTS quiz_settings (
+    quiz_settings_id SERIAL PRIMARY KEY,
+    is_quiz BOOLEAN NOT NULL
 );
 
---Form Settings
-CREATE TABLE IF NOT EXISTS formSettings (
-    settingsId SERIAL PRIMARY KEY,
-    quizSettingsId INTEGER,
-    FOREIGN KEY (quizSettingsId) REFERENCES quizSettings(quizSettingsId)
-);
-
--- Core table for forms, linking to settings, owners, and meta-information.
-CREATE TABLE IF NOT EXISTS forms (
-    formId SERIAL PRIMARY KEY,
-    ownerId INTEGER REFERENCES users(userId) ON DELETE CASCADE,
-    infoId INTEGER NOT NULL,
-    revisionId VARCHAR NOT NULL,
-    responderUri VARCHAR NOT NULL,
-    settingsId INTEGER NOT NULL,
-    FOREIGN KEY (infoId) REFERENCES formInfo(infoId),
-    FOREIGN KEY (settingsId) REFERENCES formSettings(settingsId),
-    createdAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updatedAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
---Sections: manage different sections in the form
-CREATE TABLE IF NOT EXISTS sections (
-    sectionId VARCHAR PRIMARY KEY,
-    formId INTEGER NOT NULL,
-    title VARCHAR NOT NULL,
-    description TEXT,
-    seqOrder INTEGER,
-    FOREIGN KEY (formId) REFERENCES forms(formId)
-);
-
---navigationRules: conditional logic to determine the flow of sections based on answers
-CREATE TABLE IF NOT EXISTS navigationRules (
-    ruleId SERIAL PRIMARY KEY,
-    sectionId VARCHAR NOT NULL,
-    targetSectionId VARCHAR NOT NULL,
-    condition TEXT,  -- JSON to define conditions based on answers
-    FOREIGN KEY (sectionId) REFERENCES sections(sectionId),
-    FOREIGN KEY (targetSectionId) REFERENCES sections(sectionId)
-);
-
---Items: Individual elements (questions, text, images) within the form.
-CREATE TABLE IF NOT EXISTS items (
-    itemId VARCHAR PRIMARY KEY,
-    title VARCHAR,
-    description TEXT,
-    kind VARCHAR NOT NULL CHECK (kind IN ('questionItem', 'questionGroupItem', 'pageBreakItem', 'textItem', 'imageItem')),
-    FOREIGN KEY (formId) REFERENCES forms(formId)
-);
-
---questionItem: Poses a question to the user.
---questionGroupItem: Poses one or more questions to the user with a single major prompt.
---pageBreakItem: Starts a new page with a title.
---textItem: Displays a title and description on the page.
---imageItem: Displays an image on the page.
-
--- Stores text for feedback given based on respondent answers in quiz questions.
+-- Feedback mechanism for quizzes
 CREATE TABLE IF NOT EXISTS feedbacks (
-    feedbackId SERIAL PRIMARY KEY,
+    feedback_id SERIAL PRIMARY KEY,
     text TEXT NOT NULL
 );
 
---Handles scoring and feedback mechanisms for quiz questions.
+-- Handles scoring and feedback mechanisms for quiz questions
 CREATE TABLE IF NOT EXISTS gradings (
-    gradingId SERIAL PRIMARY KEY,
-    pointValue INTEGER NOT NULL,
-    whenRight INTEGER,
-    whenWrong INTEGER,
-    generalFeedback INTEGER,
-    answerKey TEXT,  -- store possible correct answers as JSON
-    autoFeedback BOOLEAN DEFAULT FALSE,  -- automate feedback provision
-    FOREIGN KEY (whenRight) REFERENCES feedbacks(feedbackId),
-    FOREIGN KEY (whenWrong) REFERENCES feedbacks(feedbackId),
-    FOREIGN KEY (generalFeedback) REFERENCES feedbacks(feedbackId)
+    grading_id SERIAL PRIMARY KEY,
+    point_value INTEGER NOT NULL,
+    when_right INTEGER,
+    when_wrong INTEGER,
+    general_feedback INTEGER,
+    answer_key TEXT,  -- store possible correct answers as JSON
+    auto_feedback BOOLEAN DEFAULT FALSE,  -- automate feedback provision
+    FOREIGN KEY (when_right) REFERENCES feedbacks(feedback_id),
+    FOREIGN KEY (when_wrong) REFERENCES feedbacks(feedback_id),
+    FOREIGN KEY (general_feedback) REFERENCES feedbacks(feedback_id)
+);
+
+-- Media properties configuration for images and other media in the form
+CREATE TABLE IF NOT EXISTS media_properties (
+    properties_id SERIAL PRIMARY KEY,
+    alignment VARCHAR CHECK (alignment IN ('LEFT', 'RIGHT', 'CENTER')),
+    width INTEGER CHECK (width >= 0 AND width <= 740)
+);
+
+-- Details about images used in forms
+CREATE TABLE IF NOT EXISTS images (
+    image_id SERIAL PRIMARY KEY,
+    content_uri VARCHAR NOT NULL,  -- A URI from which to download the image
+    alt_text VARCHAR,  -- image description
+    source_uri VARCHAR,  -- the URI used to insert the image into the form
+    properties_id INTEGER,  -- additional settings for the image, such as alignment and width
+    FOREIGN KEY (properties_id) REFERENCES media_properties(properties_id)
+);
+
+-- Form Settings linking to Quiz Settings
+CREATE TABLE IF NOT EXISTS form_settings (
+    settings_id SERIAL PRIMARY KEY,
+    quiz_settings_id INTEGER,
+    FOREIGN KEY (quiz_settings_id) REFERENCES quiz_settings(quiz_settings_id)
+);
+
+-- Core table for forms, linking to settings, owners, and meta-information
+CREATE TABLE IF NOT EXISTS forms (
+    form_id SERIAL PRIMARY KEY,
+    owner_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
+    info_id INTEGER NOT NULL,
+    revision_id VARCHAR NOT NULL,
+    responder_uri VARCHAR NOT NULL,
+    settings_id INTEGER,
+    FOREIGN KEY (info_id) REFERENCES form_info(info_id),
+    FOREIGN KEY (settings_id) REFERENCES form_settings(settings_id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 
---Stores questions of various types of questions that can be part of the form.
+-- Sections: manage different sections in the form
+CREATE TABLE IF NOT EXISTS sections (
+    section_id SERIAL PRIMARY KEY,
+    form_id INTEGER NOT NULL,
+    title VARCHAR NOT NULL,
+    description TEXT,
+    seq_order INTEGER,
+    UNIQUE(form_id, seq_order),  -- Assuming 'seq_order' should be unique per form
+    FOREIGN KEY (form_id) REFERENCES forms(form_id)
+);
+
+
+CREATE TABLE IF NOT EXISTS items (
+    item_id SERIAL PRIMARY KEY,
+    form_id INTEGER NOT NULL,
+    section_id INTEGER,
+    title VARCHAR,
+    description TEXT,
+    kind VARCHAR NOT NULL CHECK (kind IN ('question_item', 'question_group_item', 'page_break_item', 'text_item', 'image_item')),
+    UNIQUE(form_id, title),  -- Assuming 'title' should be unique per form
+    FOREIGN KEY (section_id) REFERENCES sections(section_id),
+    FOREIGN KEY (form_id) REFERENCES forms(form_id)
+);
+
+-- --questionItem: Poses a question to the user.
+-- --questionGroupItem: Poses one or more questions to the user with a single major prompt.
+-- --pageBreakItem: Starts a new page with a title.
+-- --textItem: Displays a title and description on the page.
+-- --imageItem: Displays an image on the page.
+
+
+ --TODO: ADD QuestionGroupItems // For a question with multiple Questions Grouped Together
+
+--TODO: ADD Image Items
+
+-- Questions of various types that can be part of the form
 CREATE TABLE IF NOT EXISTS questions (
-    questionId VARCHAR PRIMARY KEY,
+    question_id SERIAL PRIMARY KEY,
     required BOOLEAN,
-    kind VARCHAR NOT NULL CHECK (kind IN ('choiceQuestion', 'textQuestion', 'scaleQuestion', 'dateQuestion', 'timeQuestion', 'fileUploadQuestion', 'rowQuestion')),
-    gradingId INTEGER,
-    FOREIGN KEY (gradingId) REFERENCES gradings(gradingId)
+    kind VARCHAR NOT NULL CHECK (kind IN ('choice_question', 'text_question', 'scale_question', 'date_question', 'time_question', 'file_upload_question', 'row_question')),
+    grading_id INTEGER,
+    FOREIGN KEY (grading_id) REFERENCES gradings(grading_id)
 );
 
 
@@ -112,78 +129,61 @@ CREATE TABLE IF NOT EXISTS questions (
 --fileUploadQuestion: respondent can upload a file.
 --rowQuestion: respondent can enter multiple free text responses.
 
---Links form items to their respective questions, enabling dynamic form structures.
 
---TODO: ADD QuestionGroupItems // For a question with multiple Questions Grouped Together
-
---TODO: ADD Image Items
-CREATE TABLE IF NOT EXISTS questionItems (
-    itemId VARCHAR PRIMARY KEY,
-    questionId VARCHAR NOT NULL,
-    FOREIGN KEY (itemId) REFERENCES items(itemId),
-    FOREIGN KEY (questionId) REFERENCES questions(questionId)
+-- Links form items to their respective questions, enabling dynamic form structures.
+CREATE TABLE IF NOT EXISTS question_items (
+    item_id INTEGER,
+    question_id INTEGER,
+    PRIMARY KEY (item_id, question_id),
+    FOREIGN KEY (item_id) REFERENCES items(item_id) ON DELETE CASCADE,
+    FOREIGN KEY (question_id) REFERENCES questions(question_id) ON DELETE CASCADE
 );
 
 -- Specifics for choice-type questions, including options configuration.
-CREATE TABLE IF NOT EXISTS choiceQuestions ( 
-    questionId VARCHAR PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS choice_questions (
+    question_id SERIAL PRIMARY KEY,
     type VARCHAR CHECK (type IN ('RADIO', 'CHECKBOX', 'DROP_DOWN', 'CHOICE_TYPE_UNSPECIFIED')),
     shuffle BOOLEAN,
-    FOREIGN KEY (questionId) REFERENCES questions(questionId)
+    FOREIGN KEY (question_id) REFERENCES questions(question_id)
 );
 
---Configuration for how media items should be displayed in the form.
-CREATE TABLE IF NOT EXISTS mediaProperties (
-    propertiesId SERIAL PRIMARY KEY,
-    alignment VARCHAR CHECK (alignment IN ('LEFT', 'RIGHT', 'CENTER')),
-    width INTEGER CHECK (width >= 0 AND width <= 740)
-);
-
--- Stores details about images used in forms.
-CREATE TABLE IF NOT EXISTS images (
-    imageId SERIAL PRIMARY KEY,
-    contentUri VARCHAR NOT NULL, --A URI from which to download the image
-    altText VARCHAR, --image description
-    sourceUri VARCHAR, -- the URI used to insert the image into the form
-    propertiesId INTEGER, --additional settings for the image, such as alignment and width,
-    FOREIGN KEY (propertiesId) REFERENCES mediaProperties(propertiesId)
-);
-
---Defines options for choice questions, including images and navigation actions.
+-- Defines options for choice questions, including images and navigation actions.
 CREATE TABLE IF NOT EXISTS options (
-    optionId SERIAL PRIMARY KEY,
-    questionId VARCHAR NOT NULL,
+    option_id SERIAL PRIMARY KEY,
+    question_id SERIAL NOT NULL,
     value VARCHAR NOT NULL,
-    imageId INTEGER, --Image for option
-    isOther BOOLEAN, --If option is other
-    gotoAction VARCHAR CHECK (gotoAction IN ('NEXT_SECTION', 'RESTART_FORM', 'SUBMIT_FORM', 'GO_TO_ACTION_UNSPECIFIED')), --Section navigation Type
-    gotoSectionId VARCHAR, --Section to navigate to if option is Selected (RADIO AND SELECT)
-    FOREIGN KEY (questionId) REFERENCES choiceQuestions(questionId),
-    FOREIGN KEY (imageId) REFERENCES images(imageId)
+    image_id INTEGER, -- Image for option
+    is_other BOOLEAN, -- If option is 'other'
+    goto_action VARCHAR CHECK (goto_action IN ('NEXT_SECTION', 'RESTART_FORM', 'SUBMIT_FORM', 'GO_TO_ACTION_UNSPECIFIED')), -- Section navigation type
+    goto_section_id SERIAL, -- Section to navigate to if option is selected (RADIO AND SELECT)
+    FOREIGN KEY (question_id) REFERENCES choice_questions(question_id),
+    FOREIGN KEY (image_id) REFERENCES images(image_id)
 );
 
---Stores possible correct answers for questions, used in grading.
-CREATE TABLE IF NOT EXISTS correctAnswers (
-    answerId SERIAL PRIMARY KEY,
-    gradingId INTEGER NOT NULL,
-    value VARCHAR NOT NULL,
-    FOREIGN KEY (gradingId) REFERENCES gradings(gradingId)
-);
-
---Logs each instance of a form being filled out.
-CREATE TABLE IF NOT EXISTS formResponses (
-    responseId SERIAL PRIMARY KEY,
-    formId INTEGER NOT NULL,
-    createdAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (formId) REFERENCES forms(formId)
+-- Logs each instance of a form being filled out.
+CREATE TABLE IF NOT EXISTS form_responses (
+    response_id SERIAL PRIMARY KEY,
+    form_id INTEGER NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (form_id) REFERENCES forms(form_id)
 );
 
 -- Stores answers to specific questions from form submissions.
 CREATE TABLE IF NOT EXISTS answers (
-    answerId SERIAL PRIMARY KEY,
-    responseId INTEGER NOT NULL,
-    questionId VARCHAR NOT NULL,
+    answer_id SERIAL PRIMARY KEY,
+    response_id INTEGER NOT NULL,
+    question_id SERIAL NOT NULL,
     value TEXT,  -- store answers as JSON or plain text
-    FOREIGN KEY (responseId) REFERENCES formResponses(responseId),
-    FOREIGN KEY (questionId) REFERENCES questions(questionId)
+    FOREIGN KEY (response_id) REFERENCES form_responses(response_id),
+    FOREIGN KEY (question_id) REFERENCES questions(question_id)
+);
+
+-- Navigation rules: conditional logic to determine the flow of sections based on answers
+CREATE TABLE IF NOT EXISTS navigation_rules (
+    rule_id SERIAL PRIMARY KEY,
+    section_id SERIAL NOT NULL,
+    target_section_id SERIAL NOT NULL,
+    condition TEXT,  -- JSON to define conditions based on answers
+    FOREIGN KEY (section_id) REFERENCES sections(section_id),
+    FOREIGN KEY (target_section_id) REFERENCES sections(section_id)
 );

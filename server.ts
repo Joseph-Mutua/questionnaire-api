@@ -30,8 +30,8 @@ app.use(helmet());
 app.use(morgan("tiny"));
 app.use(express.json());
 
-app.use("/api/v1/user", userRoutes);
-app.use("/api/v1/form", formRoutes);
+app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/forms", formRoutes);
 
 
 runMigrations();
