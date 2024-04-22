@@ -85,3 +85,9 @@ export interface FeedbackIds {
   when_wrong: number | null;
   general_feedback: number | null;
 }
+
+
+export interface AnswerDetails {
+  score: number;
+  feedback: string;
+}

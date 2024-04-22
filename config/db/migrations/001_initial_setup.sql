@@ -164,16 +164,20 @@ CREATE TABLE IF NOT EXISTS options (
 CREATE TABLE IF NOT EXISTS form_responses (
     response_id SERIAL PRIMARY KEY,
     form_id INTEGER NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    responder_email VARCHAR(255),  -- To store respondent's email if collected
+    create_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_submitted_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    total_score INTEGER DEFAULT 0,  -- Total score for quiz responses
     FOREIGN KEY (form_id) REFERENCES forms(form_id)
 );
-
--- Stores answers to specific questions from form submissions.
+-- Stores answers to specific questions from form submissions.-- Answers table modified to include grading and feedback
 CREATE TABLE IF NOT EXISTS answers (
     answer_id SERIAL PRIMARY KEY,
     response_id INTEGER NOT NULL,
     question_id SERIAL NOT NULL,
-    value TEXT,  -- store answers as JSON or plain text
+    value TEXT,  -- JSON format to store complex answers like choices or uploads
+    score INTEGER DEFAULT 0,  -- Score obtained for this answer
+    feedback TEXT,  -- Feedback provided for this answer
     FOREIGN KEY (response_id) REFERENCES form_responses(response_id),
     FOREIGN KEY (question_id) REFERENCES questions(question_id)
 );

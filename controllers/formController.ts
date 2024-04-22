@@ -1,8 +1,16 @@
 import { Response, Request } from "express";
 import { pool } from "../config/db";
 import jwt from "jsonwebtoken";
-import { FeedbackIds, Grading, Item, Question, Section } from "../types";
+import {
+  AnswerDetails,
+  FeedbackIds,
+  Grading,
+  Item,
+  Question,
+  Section,
+} from "../types";
 import { Pool } from "pg";
+import { ParsedQs } from "qs";
 
 export type AuthRequest = Request & { user?: { userId: string } };
 
@@ -31,7 +39,7 @@ export const createForm = async (req: AuthRequest, res: Response) => {
       process.env.JWT_SECRET!,
       { expiresIn: "3d" }
     );
-    const responderUri = `https://example.com/forms/respond?token=${token}`;
+    const responderUri = `${process.env.APP_DOMAIN_NAME}/forms/respond?token=${token}`;
 
     const forms_query =
       "INSERT INTO forms(owner_id, info_id, revision_id, responder_uri, settings_id) VALUES($1, $2, $3, $4, NULL) RETURNING form_id";
@@ -63,8 +71,8 @@ export const createForm = async (req: AuthRequest, res: Response) => {
 };
 
 export const updateForm = async (req: AuthRequest, res: Response) => {
-  const user_id = req.user?.userId; 
-  const form_id = parseInt(req.params.id); 
+  const user_id = req.user?.userId;
+  const form_id = parseInt(req.params.id);
   const { sections, settings } = req.body;
 
   if (!user_id) {
@@ -99,8 +107,8 @@ export const updateForm = async (req: AuthRequest, res: Response) => {
     const revisionParts = currentRevision.substring(1).split(".");
     let majorVersion = parseInt(revisionParts[0]);
     let minorVersion = parseInt(revisionParts[1] || "0");
-    majorVersion += 1; 
-    const newRevisionId = `v${majorVersion}.0`; 
+    majorVersion += 1;
+    const newRevisionId = `v${majorVersion}.0`;
 
     const newToken = jwt.sign(
       { formId: form_id, revisionId: newRevisionId, permissions: "fill" },
@@ -134,7 +142,6 @@ export const updateForm = async (req: AuthRequest, res: Response) => {
     res.status(500).send({ error: "Failed to update form." });
   }
 };
-
 
 export const getForm = async (req: AuthRequest, res: Response) => {
   const form_id = parseInt(req.params.id);
@@ -234,6 +241,172 @@ export const getFormsByUser = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error("Error fetching user forms:", error);
     res.status(500).send({ error: "Failed to fetch forms." });
+  }
+};
+
+//Access shared Form
+export const getFormByToken = async (req: Request, res: Response) => {
+  console.log("🚀 ~ getFormByToken ~ req:")
+  if (!req.query.token) {
+    return res.status(400).json({ error: "Token is required" });
+  }
+
+  // Ensure the token is a string
+  const token = typeof req.query.token === "string" ? req.query.token : null;
+  if (!token) {
+    return res.status(400).json({ error: "Token must be a single string" });
+  }
+
+  try {
+    // Verify the token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+    if (typeof decoded !== "object" || !decoded.formId || !decoded.revisionId) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "Invalid token: Form ID and Revision ID are required in the token payload",
+        });
+    }
+
+    const { formId, revisionId } = decoded as {
+      formId: number;
+      revisionId: string;
+    };
+
+    // Fetch form details using formId and revisionId
+    const formDetails = await fetchFormDetailsWithRevision(
+      pool,
+      formId,
+      revisionId
+    );
+    if (!formDetails) {
+      return res
+        .status(404)
+        .json({ error: "Form not found or revision does not match." });
+    }
+
+    res.json(formDetails);
+  } catch (error) {
+    console.error("Error verifying token or fetching form details:", error);
+    if (error instanceof jwt.JsonWebTokenError) {
+      return res.status(401).json({ error: "Invalid token." });
+    }
+    return res.status(500).json({ error: "Failed to process request." });
+  }
+};
+
+
+async function fetchFormDetailsWithRevision(
+  pool: Pool,
+  formId: number,
+  revisionId: string
+) {
+  const query = `
+    SELECT 
+        f.form_id, f.revision_id, f.responder_uri, fi.title, fi.description, fs.settings_id, qs.is_quiz,
+        json_agg(json_build_object(
+            'section_id', s.section_id, 
+            'title', s.title, 
+            'description', s.description,
+            'seq_order', s.seq_order,
+            'items', (SELECT json_agg(json_build_object(
+                'item_id', i.item_id, 
+                'title', i.title, 
+                'description', i.description, 
+                'kind', i.kind,
+                'questions', (SELECT json_agg(json_build_object(
+                    'question_id', q.question_id, 
+                    'required', q.required, 
+                    'kind', q.kind,
+                    'grading', (SELECT json_build_object(
+                        'grading_id', g.grading_id,
+                        'point_value', g.point_value,
+                        'when_right', g.when_right,
+                        'when_wrong', g.when_wrong,
+                        'general_feedback', g.general_feedback,
+                        'answer_key', g.answer_key,
+                        'auto_feedback', g.auto_feedback
+                    ) FROM gradings g WHERE g.grading_id = q.grading_id),
+                    'options', (CASE WHEN q.kind = 'choice_question' THEN (
+                        SELECT json_agg(json_build_object(
+                            'option_id', o.option_id,
+                            'value', o.value,
+                            'image_id', o.image_id,
+                            'is_other', o.is_other,
+                            'goto_action', o.goto_action
+                        )) FROM options o WHERE o.question_id = q.question_id
+                    ) ELSE NULL END)
+                )) FROM questions q JOIN question_items qi ON q.question_id = qi.question_id WHERE qi.item_id = i.item_id)
+            )) FROM items i WHERE i.section_id = s.section_id)
+        )) AS sections
+    FROM forms f
+    JOIN form_info fi ON f.info_id = fi.info_id
+    JOIN form_settings fs ON f.settings_id = fs.settings_id
+    LEFT JOIN quiz_settings qs ON fs.quiz_settings_id = qs.quiz_settings_id
+    JOIN sections s ON f.form_id = s.form_id
+    WHERE f.form_id = $1 AND f.revision_id = $2
+    GROUP BY f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz;
+  `;
+  const details = await pool.query(query, [formId, revisionId]);
+  return details.rows.length ? details.rows[0] : null;
+}
+
+
+// Submit a new response to a form
+export const submitFormResponse = async (req: Request, res: Response) => {
+  const { formId } = req.params;
+  const { answers, responderEmail } = req.body; // answers should be an object of questionId: answer details
+  try {
+    await pool.query("BEGIN");
+
+    const insertResponseQuery = `
+            INSERT INTO form_responses (form_id, responder_email, create_time, last_submitted_time, total_score)
+            VALUES ($1, $2, NOW(), NOW(), 0)
+            RETURNING response_id;
+        `;
+    const responseResult = await pool.query(insertResponseQuery, [
+      formId,
+      responderEmail,
+    ]);
+    const responseId = responseResult.rows[0].response_id;
+
+    let totalScore = 0;
+    for (const [questionId, answerDetails] of Object.entries(answers)) {
+      const insertAnswerQuery = `
+                INSERT INTO answers (response_id, question_id, value, score, feedback)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING score;
+            `;
+      const { score, feedback } = answerDetails as AnswerDetails;
+      await pool.query(insertAnswerQuery, [
+        responseId,
+        questionId,
+        JSON.stringify(answerDetails),
+        score,
+        feedback,
+      ]);
+      totalScore += score;
+    }
+
+    // Update the total score after all answers are processed
+    await pool.query(
+      "UPDATE form_responses SET total_score = $1 WHERE response_id = $2",
+      [totalScore, responseId]
+    );
+
+    await pool.query("COMMIT");
+
+    res
+      .status(201)
+      .json({
+        message: "Response submitted successfully",
+        responseId: responseId,
+      });
+  } catch (error) {
+    await pool.query("ROLLBACK");
+    console.error("Error submitting form response:", error);
+    res.status(500).send({ error: "Failed to submit form response." });
   }
 };
 
