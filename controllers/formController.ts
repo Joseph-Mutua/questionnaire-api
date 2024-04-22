@@ -63,34 +63,49 @@ export const createForm = async (req: AuthRequest, res: Response) => {
 };
 
 export const updateForm = async (req: AuthRequest, res: Response) => {
-  const user_id = req.user?.userId;
-  const form_id = parseInt(req.params.id);
+  const user_id = req.user?.userId; 
+  const form_id = parseInt(req.params.id); 
   const { sections, settings } = req.body;
+
   if (!user_id) {
     return res.status(403).json({ error: "User must be logged in." });
   }
   if (!form_id) {
     return res.status(400).json({ error: "Invalid form ID." });
   }
+
   try {
     await pool.query("BEGIN");
 
+    const ownerCheckResult = await pool.query(
+      "SELECT owner_id, revision_id FROM forms WHERE form_id = $1",
+      [form_id]
+    );
+    if (ownerCheckResult.rows.length === 0) {
+      await pool.query("ROLLBACK");
+      return res.status(404).json({ error: "Form not found." });
+    }
+
+    if (ownerCheckResult.rows[0].owner_id !== user_id) {
+      await pool.query("ROLLBACK");
+      return res
+        .status(403)
+        .json({ error: "User is not authorized to update this form." });
+    }
+
     await updateOrCreateSettings(pool, settings, form_id);
 
-    // Increment revision ID and update responder URI
-    const newRevisionId = `v${
-      parseInt(
-        (
-          await pool.query("SELECT revision_id FROM forms WHERE form_id = $1", [
-            form_id,
-          ])
-        ).rows[0].revision_id.substring(1)
-      ) + 1
-    }`;
+    const currentRevision = ownerCheckResult.rows[0].revision_id;
+    const revisionParts = currentRevision.substring(1).split(".");
+    let majorVersion = parseInt(revisionParts[0]);
+    let minorVersion = parseInt(revisionParts[1] || "0");
+    majorVersion += 1; 
+    const newRevisionId = `v${majorVersion}.0`; 
+
     const newToken = jwt.sign(
-      { formId: form_id, permissions: "fill" },
+      { formId: form_id, revisionId: newRevisionId, permissions: "fill" },
       process.env.JWT_SECRET!,
-      { expiresIn: "30d" }
+      { expiresIn: "3d" }
     );
     const newResponderUri = `${process.env.APP_DOMAIN_NAME}/forms/respond?token=${newToken}`;
 
@@ -101,7 +116,6 @@ export const updateForm = async (req: AuthRequest, res: Response) => {
 
     for (const section of sections) {
       let section_id = await handleSection(pool, form_id, section);
-
       for (const item of section.items) {
         await handleItem(pool, form_id, section_id, item);
       }
@@ -110,17 +124,17 @@ export const updateForm = async (req: AuthRequest, res: Response) => {
     const formDetails = await fetchFormDetails(pool, form_id);
 
     await pool.query("COMMIT");
-
     res.status(200).json({
       message: "Form updated successfully",
       formDetails: formDetails,
     });
   } catch (error) {
     await pool.query("ROLLBACK");
-    const errorMessage = (error as Error).message;
-    res.status(500).send(errorMessage);
+    console.error("Error during form update:", error);
+    res.status(500).send({ error: "Failed to update form." });
   }
 };
+
 
 export const getForm = async (req: AuthRequest, res: Response) => {
   const form_id = parseInt(req.params.id);
@@ -170,7 +184,23 @@ export const deleteForm = async (req: AuthRequest, res: Response) => {
     }
 
     await pool.query("BEGIN");
+
+    await pool.query(
+      "DELETE FROM question_items WHERE item_id IN (SELECT item_id FROM items WHERE form_id = $1)",
+      [form_id]
+    );
+    await pool.query(
+      "DELETE FROM questions WHERE question_id IN (SELECT question_id FROM question_items WHERE item_id IN (SELECT item_id FROM items WHERE form_id = $1))",
+      [form_id]
+    );
+    await pool.query(
+      "DELETE FROM options WHERE question_id IN (SELECT question_id FROM questions WHERE question_id IN (SELECT question_id FROM question_items WHERE item_id IN (SELECT item_id FROM items WHERE form_id = $1)))",
+      [form_id]
+    );
+    await pool.query("DELETE FROM items WHERE form_id = $1", [form_id]);
+    await pool.query("DELETE FROM sections WHERE form_id = $1", [form_id]);
     await pool.query("DELETE FROM forms WHERE form_id = $1", [form_id]);
+
     await pool.query("COMMIT");
 
     res.json({ message: "Form deleted successfully." });
@@ -180,25 +210,6 @@ export const deleteForm = async (req: AuthRequest, res: Response) => {
     res.status(500).send({ error: "Failed to delete form." });
   }
 };
-
-// export const getFormsByUser = async (req: AuthRequest, res: Response) => {
-//   const user_id = req.user?.userId;
-//   if (!user_id) {
-//     return res.status(403).json({ error: "User must be logged in." });
-//   }
-
-//   try {
-//     const forms = await pool.query(
-//       "SELECT form_id, title, description, created_at, updated_at FROM forms f JOIN form_info fi ON f.info_id = fi.info_id WHERE owner_id = $1",
-//       [user_id]
-//     );
-
-//     res.json(forms.rows);
-//   } catch (error) {
-//     console.error("Error fetching forms:", error);
-//     res.status(500).send({ error: "Failed to fetch forms." });
-//   }
-// };
 
 export const getFormsByUser = async (req: AuthRequest, res: Response) => {
   const user_id = req.user?.userId;
