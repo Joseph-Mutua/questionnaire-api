@@ -88,6 +88,8 @@ export interface FeedbackIds {
 
 
 export interface AnswerDetails {
+  grade: any;
+  textAnswers: any;
   score: number;
   feedback: string;
 }

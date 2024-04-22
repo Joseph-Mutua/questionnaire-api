@@ -246,7 +246,6 @@ export const getFormsByUser = async (req: AuthRequest, res: Response) => {
 
 //Access shared Form
 export const getFormByToken = async (req: Request, res: Response) => {
-  console.log("🚀 ~ getFormByToken ~ req:")
   if (!req.query.token) {
     return res.status(400).json({ error: "Token is required" });
   }
@@ -261,12 +260,10 @@ export const getFormByToken = async (req: Request, res: Response) => {
     // Verify the token
     const decoded = jwt.verify(token, process.env.JWT_SECRET!);
     if (typeof decoded !== "object" || !decoded.formId || !decoded.revisionId) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "Invalid token: Form ID and Revision ID are required in the token payload",
-        });
+      return res.status(400).json({
+        error:
+          "Invalid token: Form ID and Revision ID are required in the token payload",
+      });
     }
 
     const { formId, revisionId } = decoded as {
@@ -295,6 +292,120 @@ export const getFormByToken = async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Failed to process request." });
   }
 };
+
+export const getSpecificFormResponse = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  const { formId, responseId } = req.params;
+  try {
+    const query = `
+            SELECT r.response_id, r.form_id, r.responder_email, r.create_time, r.last_submitted_time, r.total_score, 
+                   json_agg(json_build_object(
+                       'questionId', a.question_id,
+                       'value', a.value,
+                       'score', a.score,
+                       'feedback', a.feedback
+                   )) AS answers
+            FROM form_responses r
+            JOIN answers a ON r.response_id = a.response_id
+            WHERE r.form_id = $1 AND r.response_id = $2
+            GROUP BY r.response_id;
+        `;
+    const { rows } = await pool.query(query, [formId, responseId]);
+    if (rows.length > 0) {
+      res.json(rows[0]);
+    } else {
+      res.status(404).json({ message: "Response not found." });
+    }
+  } catch (error) {
+    console.error("Error fetching form response:", error);
+    res.status(500).send({ error: "Failed to fetch form response." });
+  }
+};
+
+
+export const fetchAllFormResponses = async (req: AuthRequest, res: Response) => {
+    const { formId } = req.params;
+    try {
+      const query = `
+            SELECT response_id, create_time, last_submitted_time, responder_email, total_score
+            FROM form_responses
+            WHERE form_id = $1;
+        `;
+      const { rows } = await pool.query(query, [formId]);
+      res.json(rows);
+    } catch (error) {
+      console.error("Error listing form responses:", error);
+      res.status(500).send({ error: "Failed to list form responses." });
+    }
+}
+
+// Submit a new response to a form
+export const submitFormResponse = async (req: Request, res: Response) => {
+  const { formId } = req.params;
+  const { answers, responderEmail } = req.body;
+
+  console.log("Received answers:", answers);
+
+  try {
+    await pool.query("BEGIN");
+
+    const insertResponseQuery = `
+            INSERT INTO form_responses (form_id, responder_email, create_time, last_submitted_time, total_score)
+            VALUES ($1, $2, NOW(), NOW(), 0)
+            RETURNING response_id;
+        `;
+    const responseResult = await pool.query(insertResponseQuery, [
+      formId,
+      responderEmail,
+    ]);
+    const responseId = responseResult.rows[0].response_id;
+
+    let totalScore = 0;
+    for (const [questionId, answerDetails] of Object.entries<AnswerDetails>(answers)) {
+      let score = answerDetails.grade ? answerDetails.grade.score : 0; // Use score from grade if available, otherwise use 0
+      let feedback = answerDetails.grade
+        ? JSON.stringify(answerDetails.grade.feedback)
+        : null; // Store feedback as a JSON string if available
+
+      const answerValue = answerDetails.textAnswers
+        ? JSON.stringify(answerDetails.textAnswers.answers)
+        : "{}"; // Convert answers to JSON string
+
+      const insertAnswerQuery = `
+                INSERT INTO answers (response_id, question_id, value, score, feedback)
+                VALUES ($1, $2, $3, $4, $5);
+            `;
+      await pool.query(insertAnswerQuery, [
+        responseId,
+        questionId,
+        answerValue,
+        score,
+        feedback,
+      ]);
+      totalScore += score;
+    }
+
+    await pool.query(
+      "UPDATE form_responses SET total_score = $1 WHERE response_id = $2",
+      [totalScore, responseId]
+    );
+
+    await pool.query("COMMIT");
+    res.status(201).json({
+      message: "Response submitted successfully",
+      responseId: responseId,
+    });
+  } catch (error) {
+    await pool.query("ROLLBACK");
+    console.error("Error submitting form response:", error);
+    res.status(500).send({ error: "Failed to submit form response." });
+  }
+};
+
+
+
 
 
 async function fetchFormDetailsWithRevision(
@@ -351,64 +462,6 @@ async function fetchFormDetailsWithRevision(
   const details = await pool.query(query, [formId, revisionId]);
   return details.rows.length ? details.rows[0] : null;
 }
-
-
-// Submit a new response to a form
-export const submitFormResponse = async (req: Request, res: Response) => {
-  const { formId } = req.params;
-  const { answers, responderEmail } = req.body; // answers should be an object of questionId: answer details
-  try {
-    await pool.query("BEGIN");
-
-    const insertResponseQuery = `
-            INSERT INTO form_responses (form_id, responder_email, create_time, last_submitted_time, total_score)
-            VALUES ($1, $2, NOW(), NOW(), 0)
-            RETURNING response_id;
-        `;
-    const responseResult = await pool.query(insertResponseQuery, [
-      formId,
-      responderEmail,
-    ]);
-    const responseId = responseResult.rows[0].response_id;
-
-    let totalScore = 0;
-    for (const [questionId, answerDetails] of Object.entries(answers)) {
-      const insertAnswerQuery = `
-                INSERT INTO answers (response_id, question_id, value, score, feedback)
-                VALUES ($1, $2, $3, $4, $5)
-                RETURNING score;
-            `;
-      const { score, feedback } = answerDetails as AnswerDetails;
-      await pool.query(insertAnswerQuery, [
-        responseId,
-        questionId,
-        JSON.stringify(answerDetails),
-        score,
-        feedback,
-      ]);
-      totalScore += score;
-    }
-
-    // Update the total score after all answers are processed
-    await pool.query(
-      "UPDATE form_responses SET total_score = $1 WHERE response_id = $2",
-      [totalScore, responseId]
-    );
-
-    await pool.query("COMMIT");
-
-    res
-      .status(201)
-      .json({
-        message: "Response submitted successfully",
-        responseId: responseId,
-      });
-  } catch (error) {
-    await pool.query("ROLLBACK");
-    console.error("Error submitting form response:", error);
-    res.status(500).send({ error: "Failed to submit form response." });
-  }
-};
 
 async function updateOrCreateSettings(
   pool: Pool,
