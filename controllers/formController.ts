@@ -180,89 +180,77 @@ async function handleItem(
 async function handleQuestion(pool: Pool, question: Question, item_id: number) {
   let question_id;
 
-  if (question.options) {
-    question_id = await handleChoiceQuestion(pool, question, item_id);
+  // Check if the question already exists for the item
+  const existingQuestion = await pool.query(
+    `SELECT question_id FROM question_items WHERE item_id = $1 AND question_id IN (
+      SELECT question_id FROM questions WHERE kind = $2 AND required = $3
+    )`,
+    [item_id, question.kind, question.required]
+  );
+
+  if (existingQuestion.rows.length > 0) {
+    // Question exists, get the ID
+    question_id = existingQuestion.rows[0].question_id;
+
+    // Update existing question details if necessary (e.g., if kind or required status has changed)
+    await pool.query(
+      `UPDATE questions SET required = $1, kind = $2 WHERE question_id = $3`,
+      [question.required, question.kind, question_id]
+    );
   } else {
+    // Insert new question if it does not exist
     const questionResult = await pool.query(
       `INSERT INTO questions (required, kind) VALUES ($1, $2) RETURNING question_id`,
       [question.required, question.kind]
     );
     question_id = questionResult.rows[0].question_id;
+
+    // Link new question to the item
     await pool.query(
       `INSERT INTO question_items (item_id, question_id) VALUES ($1, $2)`,
       [item_id, question_id]
     );
   }
 
+  // Handle grading information
   if (question.grading) {
-    await handleGrading(pool, question_id, question.grading);
+    let grading_id = await handleGrading(pool, question_id, question.grading);
+    await pool.query(
+      `UPDATE questions SET grading_id = $1 WHERE question_id = $2`,
+      [grading_id, question_id]
+    );
+  }
+
+  // Handle options for choice questions
+  if (question.kind === "choice_question" && question.options) {
+    await handleChoiceQuestion(pool, question, question_id);
   }
 
   return question_id;
 }
 
-// async function handleChoiceQuestion(pool: Pool, question: Question, item_id: number) {
-//   const questionInsertResult = await pool.query(
-//     `INSERT INTO questions (required, kind) VALUES ($1, $2) RETURNING question_id`,
-//     [question.required, question.kind]
-//   );
-//   const question_id = questionInsertResult.rows[0].question_id;
+async function handleChoiceQuestion(
+  pool: Pool,
+  question: Question,
+  question_id: number
+) {
+  // Delete existing options (if this is not desirable, further checks need to be implemented)
+  await pool.query(`DELETE FROM options WHERE question_id = $1`, [question_id]);
 
-// const choiceQuestionResult = await pool.query(
-//   `INSERT INTO choice_questions (question_id, type, shuffle) VALUES ($1, $2, $3) RETURNING question_id`,
-//   [question_id, question.options?.type, question.options?.shuffle]
-// );
-
-// for (const choice of question.options?.choices ?? []) {
-//   let validatedImageId = null;
-//   if (choice.image_id) {
-//     validatedImageId = await validateImageId(pool, choice.image_id);
-//   }
-//   await pool.query(
-//     `INSERT INTO options (question_id, value, image_id, is_other, goto_action) 
-//      VALUES ($1, $2, $3, $4, $5)`,
-//     [
-//       question_id,
-//       choice.value,
-//       validatedImageId,
-//       choice.is_other,
-//       choice.goto_action,
-//     ]
-//   );
-// }
-
-//   await pool.query(
-//     `INSERT INTO question_items (item_id, question_id) VALUES ($1, $2)`,
-//     [item_id, question_id]
-//   );
-
-//   return question_id;
-// }
-
-
-async function handleChoiceQuestion(pool: Pool, question: Question, item_id: number) {
-  const questionInsertResult = await pool.query(
-    `INSERT INTO questions (required, kind) VALUES ($1, $2) RETURNING question_id`,
-    [question.required, question.kind]
-  );
-  const question_id = questionInsertResult.rows[0].question_id;
-
-  const choiceQuestionResult = await pool.query(
-    `INSERT INTO choice_questions (question_id, type, shuffle) VALUES ($1, $2, $3) RETURNING question_id`,
+  // Insert new options
+  await pool.query(
+    `INSERT INTO choice_questions (question_id, type, shuffle) VALUES ($1, $2, $3) ON CONFLICT (question_id) DO UPDATE SET type = EXCLUDED.type, shuffle = EXCLUDED.shuffle`,
     [question_id, question.options?.type, question.options?.shuffle]
   );
 
-  for (const choice of question.options?.choices?? []) {
-    let validatedImageId = null;
-    try {
-      validatedImageId = await validateImageId(pool, choice.image_id as number);
-    } catch (error) {
-      console.error(error); // Optionally handle the error, e.g., by using a default image ID
-      validatedImageId = null; // Use null or a default image ID if the specific ID is not found
-    }
+  for (const choice of question.options?.choices ?? []) {
+    let validatedImageId = await validateImageId(
+      pool,
+      choice.image_id as number
+    ); // Ensures image_id is valid or null
     await pool.query(
       `INSERT INTO options (question_id, value, image_id, is_other, goto_action) 
-             VALUES ($1, $2, $3, $4, $5)`,
+       VALUES ($1, $2, $3, $4, $5)`,
       [
         question_id,
         choice.value,
@@ -272,27 +260,28 @@ async function handleChoiceQuestion(pool: Pool, question: Question, item_id: num
       ]
     );
   }
-
-  await pool.query(
-    `INSERT INTO question_items (item_id, question_id) VALUES ($1, $2)`,
-    [item_id, question_id]
-  );
-
-  return question_id;
 }
 
 async function validateImageId(pool: Pool, image_id: number) {
+  if (image_id === null || image_id === undefined) {
+    return null; // Early return if no image_id is provided
+  }
+
   const result = await pool.query(
     `SELECT image_id FROM images WHERE image_id = $1`,
     [image_id]
   );
   if (result.rows.length === 0) {
-    throw new Error(`Image ID ${image_id} does not exist.`);
+    return null; // Return null if the image_id does not exist
   }
-  return image_id; // Image ID is valid
+  return image_id; // Return the valid image_id
 }
 
-async function handleGrading(pool: Pool, question_id: number, grading: Grading) {
+async function handleGrading(
+  pool: Pool,
+  question_id: number,
+  grading: Grading
+) {
   // Ensure feedback entries exist or create them
   const feedbackIds = await ensureFeedbackExists(pool, [
     grading.when_right,
@@ -316,11 +305,11 @@ async function handleGrading(pool: Pool, question_id: number, grading: Grading) 
 }
 
 async function ensureFeedbackExists(pool: Pool, feedbackIds: number[]) {
-let resultIds: FeedbackIds = {
-  when_right: null,
-  when_wrong: null,
-  general_feedback: null,
-};
+  let resultIds: FeedbackIds = {
+    when_right: null,
+    when_wrong: null,
+    general_feedback: null,
+  };
 
   for (let i = 0; i < feedbackIds.length; i++) {
     let id = feedbackIds[i];
@@ -344,24 +333,23 @@ let resultIds: FeedbackIds = {
   return resultIds;
 }
 
-
 // async function fetchFormDetails(pool: Pool, form_id: number) {
 //   const query = `
-//         SELECT 
+//         SELECT
 //             f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz,
 //             json_agg(json_build_object(
-//                 'section_id', s.section_id, 
-//                 'title', s.title, 
+//                 'section_id', s.section_id,
+//                 'title', s.title,
 //                 'description', s.description,
 //                 'seq_order', s.seq_order,
 //                 'items', (SELECT json_agg(json_build_object(
-//                     'item_id', i.item_id, 
-//                     'title', i.title, 
-//                     'description', i.description, 
+//                     'item_id', i.item_id,
+//                     'title', i.title,
+//                     'description', i.description,
 //                     'kind', i.kind,
 //                     'questions', (SELECT json_agg(json_build_object(
-//                         'question_id', q.question_id, 
-//                         'required', q.required, 
+//                         'question_id', q.question_id,
+//                         'required', q.required,
 //                         'kind', q.kind
 //                     )) FROM questions q JOIN question_items qi ON q.question_id = qi.question_id WHERE qi.item_id = i.item_id)
 //                 )) FROM items i WHERE i.section_id = s.section_id)
@@ -377,7 +365,6 @@ let resultIds: FeedbackIds = {
 //   const details = await pool.query(query, [form_id]);
 //   return details.rows[0]; // Assuming there is always at least one form with the given ID
 // }
-
 
 async function fetchFormDetails(pool: Pool, form_id: number) {
   const query = `
