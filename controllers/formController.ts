@@ -1,21 +1,14 @@
 import { Response, Request } from "express";
 import { pool } from "../config/db";
-import {
-  FeedbackIds,
-  Grading,
-  Item,
-  Question,
-  QuestionOptions,
-  QuizSettings,
-  Section,
-} from "../types";
+import jwt from "jsonwebtoken";
+import { FeedbackIds, Grading, Item, Question, Section } from "../types";
 import { Pool } from "pg";
 
 export type AuthRequest = Request & { user?: { userId: string } };
 
 export const createForm = async (req: AuthRequest, res: Response) => {
   const user_id = req.user?.userId;
-  const { title, description, sections } = req.body; // Assume sections are part of the creation request
+  const { title, description, sections } = req.body;
 
   if (!user_id) {
     return res.status(403).json({ error: "User must be logged in." });
@@ -32,11 +25,23 @@ export const createForm = async (req: AuthRequest, res: Response) => {
       form_info_values
     );
 
-    const forms_query =
-      "INSERT INTO forms(owner_id, info_id, revision_id, responder_uri, settings_id) VALUES($1, $2, 'v1.0', 'responder_uri_placeholder', NULL) RETURNING form_id";
-    const forms_values = [user_id, form_info_result.rows[0].info_id];
-    const forms_result = await pool.query(forms_query, forms_values);
+    const revisionId = "v1.0";
+    const token = jwt.sign(
+      { formId: form_info_result.rows[0].info_id, permissions: "fill" },
+      process.env.JWT_SECRET!,
+      { expiresIn: "3d" }
+    );
+    const responderUri = `https://example.com/forms/respond?token=${token}`;
 
+    const forms_query =
+      "INSERT INTO forms(owner_id, info_id, revision_id, responder_uri, settings_id) VALUES($1, $2, $3, $4, NULL) RETURNING form_id";
+    const forms_values = [
+      user_id,
+      form_info_result.rows[0].info_id,
+      revisionId,
+      responderUri,
+    ];
+    const forms_result = await pool.query(forms_query, forms_values);
     const form_id = forms_result.rows[0].form_id;
 
     if (sections && sections.length > 0) {
@@ -44,17 +49,14 @@ export const createForm = async (req: AuthRequest, res: Response) => {
         await handleSection(pool, form_id, section);
       }
     }
-
     await pool.query("COMMIT");
-
     res.status(201).json({
       message: "Form created successfully",
       formId: form_id,
-      formDetails: await fetchFormDetails(pool, form_id), // Fetch detailed info including sections and items
+      formDetails: await fetchFormDetails(pool, form_id),
     });
   } catch (error) {
     await pool.query("ROLLBACK");
-    console.error("Error during form creation:", error);
     const errorMessage = (error as Error).message;
     res.status(500).send(errorMessage);
   }
@@ -64,21 +66,39 @@ export const updateForm = async (req: AuthRequest, res: Response) => {
   const user_id = req.user?.userId;
   const form_id = parseInt(req.params.id);
   const { sections, settings } = req.body;
-
   if (!user_id) {
     return res.status(403).json({ error: "User must be logged in." });
   }
   if (!form_id) {
     return res.status(400).json({ error: "Invalid form ID." });
   }
-
   try {
     await pool.query("BEGIN");
 
-    // Handle quiz settings
-    let settings_id = await updateOrCreateSettings(pool, settings, form_id);
+    await updateOrCreateSettings(pool, settings, form_id);
 
-    // Process each section and its items
+    // Increment revision ID and update responder URI
+    const newRevisionId = `v${
+      parseInt(
+        (
+          await pool.query("SELECT revision_id FROM forms WHERE form_id = $1", [
+            form_id,
+          ])
+        ).rows[0].revision_id.substring(1)
+      ) + 1
+    }`;
+    const newToken = jwt.sign(
+      { formId: form_id, permissions: "fill" },
+      process.env.JWT_SECRET!,
+      { expiresIn: "30d" }
+    );
+    const newResponderUri = `${process.env.APP_DOMAIN_NAME}/forms/respond?token=${newToken}`;
+
+    await pool.query(
+      "UPDATE forms SET revision_id = $1, responder_uri = $2 WHERE form_id = $3",
+      [newRevisionId, newResponderUri, form_id]
+    );
+
     for (const section of sections) {
       let section_id = await handleSection(pool, form_id, section);
 
@@ -87,7 +107,6 @@ export const updateForm = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Fetch updated form details
     const formDetails = await fetchFormDetails(pool, form_id);
 
     await pool.query("COMMIT");
@@ -98,9 +117,112 @@ export const updateForm = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     await pool.query("ROLLBACK");
-    console.error("Error during form update:", error);
     const errorMessage = (error as Error).message;
     res.status(500).send(errorMessage);
+  }
+};
+
+export const getForm = async (req: AuthRequest, res: Response) => {
+  const form_id = parseInt(req.params.id);
+  if (!form_id) {
+    return res.status(400).json({ error: "Invalid form ID provided." });
+  }
+
+  try {
+    const formDetails = await fetchFormDetails(pool, form_id);
+    if (!formDetails) {
+      return res.status(404).json({ error: "Form not found." });
+    }
+    res.json(formDetails);
+  } catch (error) {
+    console.error("Error fetching form details:", error);
+    res.status(500).send({ error: "Failed to fetch form details." });
+  }
+};
+
+export const deleteForm = async (req: AuthRequest, res: Response) => {
+  const user_id = req.user?.userId;
+  const form_id = parseInt(req.params.id);
+
+  if (!user_id) {
+    return res
+      .status(403)
+      .json({ error: "User must be logged in to delete forms." });
+  }
+  if (!form_id) {
+    return res.status(400).json({ error: "Invalid form ID provided." });
+  }
+
+  try {
+    const ownerCheck = await pool.query(
+      "SELECT owner_id FROM forms WHERE form_id = $1",
+      [form_id]
+    );
+
+    if (ownerCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Form not found." });
+    }
+
+    if (ownerCheck.rows[0].owner_id !== user_id) {
+      return res
+        .status(403)
+        .json({ error: "User is not authorized to delete this form." });
+    }
+
+    await pool.query("BEGIN");
+    await pool.query("DELETE FROM forms WHERE form_id = $1", [form_id]);
+    await pool.query("COMMIT");
+
+    res.json({ message: "Form deleted successfully." });
+  } catch (error) {
+    await pool.query("ROLLBACK");
+    console.error("Error deleting form:", error);
+    res.status(500).send({ error: "Failed to delete form." });
+  }
+};
+
+// export const getFormsByUser = async (req: AuthRequest, res: Response) => {
+//   const user_id = req.user?.userId;
+//   if (!user_id) {
+//     return res.status(403).json({ error: "User must be logged in." });
+//   }
+
+//   try {
+//     const forms = await pool.query(
+//       "SELECT form_id, title, description, created_at, updated_at FROM forms f JOIN form_info fi ON f.info_id = fi.info_id WHERE owner_id = $1",
+//       [user_id]
+//     );
+
+//     res.json(forms.rows);
+//   } catch (error) {
+//     console.error("Error fetching forms:", error);
+//     res.status(500).send({ error: "Failed to fetch forms." });
+//   }
+// };
+
+export const getFormsByUser = async (req: AuthRequest, res: Response) => {
+  const user_id = req.user?.userId;
+  if (!user_id) {
+    return res.status(403).json({ error: "User must be logged in." });
+  }
+
+  try {
+    const basicFormsQuery = "SELECT form_id FROM forms WHERE owner_id = $1";
+    const basicFormsResult = await pool.query(basicFormsQuery, [user_id]);
+
+    if (basicFormsResult.rows.length === 0) {
+      return res.status(404).json({ message: "No forms found for this user." });
+    }
+
+    const formsDetailsPromises = basicFormsResult.rows.map((row) =>
+      fetchFormDetails(pool, row.form_id)
+    );
+    const formsDetails = await Promise.all(formsDetailsPromises);
+
+    res.json(formsDetails);
+  } catch (error) {
+    console.error("Error fetching user forms:", error);
+    res.status(500).send({ error: "Failed to fetch forms." });
   }
 };
 
@@ -180,7 +302,6 @@ async function handleItem(
 async function handleQuestion(pool: Pool, question: Question, item_id: number) {
   let question_id;
 
-  // Check if the question already exists for the item
   const existingQuestion = await pool.query(
     `SELECT question_id FROM question_items WHERE item_id = $1 AND question_id IN (
       SELECT question_id FROM questions WHERE kind = $2 AND required = $3
@@ -198,21 +319,18 @@ async function handleQuestion(pool: Pool, question: Question, item_id: number) {
       [question.required, question.kind, question_id]
     );
   } else {
-    // Insert new question if it does not exist
     const questionResult = await pool.query(
       `INSERT INTO questions (required, kind) VALUES ($1, $2) RETURNING question_id`,
       [question.required, question.kind]
     );
     question_id = questionResult.rows[0].question_id;
 
-    // Link new question to the item
     await pool.query(
       `INSERT INTO question_items (item_id, question_id) VALUES ($1, $2)`,
       [item_id, question_id]
     );
   }
 
-  // Handle grading information
   if (question.grading) {
     let grading_id = await handleGrading(pool, question_id, question.grading);
     await pool.query(
@@ -221,7 +339,6 @@ async function handleQuestion(pool: Pool, question: Question, item_id: number) {
     );
   }
 
-  // Handle options for choice questions
   if (question.kind === "choice_question" && question.options) {
     await handleChoiceQuestion(pool, question, question_id);
   }
@@ -264,7 +381,7 @@ async function handleChoiceQuestion(
 
 async function validateImageId(pool: Pool, image_id: number) {
   if (image_id === null || image_id === undefined) {
-    return null; // Early return if no image_id is provided
+    return null;
   }
 
   const result = await pool.query(
@@ -272,9 +389,9 @@ async function validateImageId(pool: Pool, image_id: number) {
     [image_id]
   );
   if (result.rows.length === 0) {
-    return null; // Return null if the image_id does not exist
+    return null;
   }
-  return image_id; // Return the valid image_id
+  return image_id;
 }
 
 async function handleGrading(
@@ -282,7 +399,6 @@ async function handleGrading(
   question_id: number,
   grading: Grading
 ) {
-  // Ensure feedback entries exist or create them
   const feedbackIds = await ensureFeedbackExists(pool, [
     grading.when_right,
     grading.when_wrong,
@@ -333,43 +449,10 @@ async function ensureFeedbackExists(pool: Pool, feedbackIds: number[]) {
   return resultIds;
 }
 
-// async function fetchFormDetails(pool: Pool, form_id: number) {
-//   const query = `
-//         SELECT
-//             f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz,
-//             json_agg(json_build_object(
-//                 'section_id', s.section_id,
-//                 'title', s.title,
-//                 'description', s.description,
-//                 'seq_order', s.seq_order,
-//                 'items', (SELECT json_agg(json_build_object(
-//                     'item_id', i.item_id,
-//                     'title', i.title,
-//                     'description', i.description,
-//                     'kind', i.kind,
-//                     'questions', (SELECT json_agg(json_build_object(
-//                         'question_id', q.question_id,
-//                         'required', q.required,
-//                         'kind', q.kind
-//                     )) FROM questions q JOIN question_items qi ON q.question_id = qi.question_id WHERE qi.item_id = i.item_id)
-//                 )) FROM items i WHERE i.section_id = s.section_id)
-//             )) AS sections
-//         FROM forms f
-//         LEFT JOIN form_info fi ON f.info_id = fi.info_id
-//         LEFT JOIN form_settings fs ON f.settings_id = fs.settings_id
-//         LEFT JOIN quiz_settings qs ON fs.quiz_settings_id = qs.quiz_settings_id
-//         LEFT JOIN sections s ON f.form_id = s.form_id
-//         WHERE f.form_id = $1
-//         GROUP BY f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz;
-//     `;
-//   const details = await pool.query(query, [form_id]);
-//   return details.rows[0]; // Assuming there is always at least one form with the given ID
-// }
-
 async function fetchFormDetails(pool: Pool, form_id: number) {
   const query = `
     SELECT 
-        f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz,
+        f.form_id, f.revision_id, f.responder_uri, fi.title, fi.description, fs.settings_id, qs.is_quiz,
         json_agg(json_build_object(
             'section_id', s.section_id, 
             'title', s.title, 
@@ -414,5 +497,5 @@ async function fetchFormDetails(pool: Pool, form_id: number) {
     GROUP BY f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz;
   `;
   const details = await pool.query(query, [form_id]);
-  return details.rows[0]; // Assuming there is always at least one form with the given ID
+  return details.rows[0];
 }
