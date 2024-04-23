@@ -324,24 +324,69 @@ export const getSpecificFormResponse = async (
   }
 };
 
+export const getAllFormResponses = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  const { formId } = req.params;
+  const userId = req.user?.userId;
 
-export const fetchAllFormResponses = async (req: AuthRequest, res: Response) => {
-    const { formId } = req.params;
-    try {
-      const query = `
-            SELECT response_id, create_time, last_submitted_time, responder_email, total_score
-            FROM form_responses
-            WHERE form_id = $1;
-        `;
-      const { rows } = await pool.query(query, [formId]);
-      res.json(rows);
-    } catch (error) {
-      console.error("Error listing form responses:", error);
-      res.status(500).send({ error: "Failed to list form responses." });
+  if (!userId) {
+    return res
+      .status(403)
+      .json({ error: "User must be logged in to access form responses." });
+  }
+
+  try {
+    // First, verify that the logged-in user is the owner of the form
+    const ownerCheck = await pool.query(
+      "SELECT owner_id FROM forms WHERE form_id = $1",
+      [formId]
+    );
+
+    if (ownerCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Form not found." });
     }
-}
 
-// Submit a new response to a form
+    if (ownerCheck.rows[0].owner_id !== userId) {
+      return res
+        .status(403)
+        .json({ error: "User is not authorized to view these responses." });
+    }
+
+    // If the user is authorized, proceed to fetch all responses with full details
+    const query = `
+            SELECT r.response_id, r.form_id, r.responder_email, r.create_time, r.last_submitted_time, r.total_score,
+                   json_agg(json_build_object(
+                       'questionId', a.question_id,
+                       'value', a.value,
+                       'score', a.score,
+                       'feedback', a.feedback
+                   )) AS answers
+            FROM form_responses r
+            JOIN answers a ON r.response_id = a.response_id
+            WHERE r.form_id = $1
+            GROUP BY r.response_id
+            ORDER BY r.create_time DESC;
+        `;
+    const { rows } = await pool.query(query, [formId]);
+    if (rows.length > 0) {
+      res.json(
+        rows.map((row) => ({
+          ...row,
+          answers: row.answers, // directly use the JSON aggregated in PostgreSQL
+        }))
+      );
+    } else {
+      res.status(404).json({ message: "No responses found for this form." });
+    }
+  } catch (error) {
+    console.error("Error listing form responses:", error);
+    res.status(500).send({ error: "Failed to list form responses." });
+  }
+};
+
+
 export const submitFormResponse = async (req: Request, res: Response) => {
   const { formId } = req.params;
   const { answers, responderEmail } = req.body;
@@ -363,7 +408,9 @@ export const submitFormResponse = async (req: Request, res: Response) => {
     const responseId = responseResult.rows[0].response_id;
 
     let totalScore = 0;
-    for (const [questionId, answerDetails] of Object.entries<AnswerDetails>(answers)) {
+    for (const [questionId, answerDetails] of Object.entries<AnswerDetails>(
+      answers
+    )) {
       let score = answerDetails.grade ? answerDetails.grade.score : 0; // Use score from grade if available, otherwise use 0
       let feedback = answerDetails.grade
         ? JSON.stringify(answerDetails.grade.feedback)
@@ -403,10 +450,6 @@ export const submitFormResponse = async (req: Request, res: Response) => {
     res.status(500).send({ error: "Failed to submit form response." });
   }
 };
-
-
-
-
 
 async function fetchFormDetailsWithRevision(
   pool: Pool,

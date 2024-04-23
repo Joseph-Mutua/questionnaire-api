@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   createForm,
   deleteForm,
+  getAllFormResponses,
   getForm,
   getFormByToken,
   getFormsByUser,
@@ -20,9 +21,8 @@ router.patch("/:id", authenticateUser, updateForm);
 // Specific static route for token-based access
 router.get("/respond", getFormByToken);
 
-//Get Specific Form Response
-router.get(":formId/responses/:responseId", getSpecificFormResponse);
-
+router.get("/:formId/responses/:responseId", getSpecificFormResponse);
+router.get("/:formId/responses", authenticateUser, getAllFormResponses);
 
 // Standard ID-based retrieval and deletion
 router.get("/:id", authenticateUser, getForm);
