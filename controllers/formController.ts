@@ -7,6 +7,7 @@ import {
   Grading,
   Item,
   Question,
+  QuizSettings,
   Section,
 } from "../types";
 import { Pool } from "pg";
@@ -244,14 +245,12 @@ export const getFormByToken = async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Token is required" });
   }
 
-  // Ensure the token is a string
   const token = typeof req.query.token === "string" ? req.query.token : null;
   if (!token) {
     return res.status(400).json({ error: "Token must be a single string" });
   }
 
   try {
-    // Verify the token
     const decoded = jwt.verify(token, process.env.JWT_SECRET!);
     if (typeof decoded !== "object" || !decoded.formId || !decoded.revisionId) {
       return res.status(400).json({
@@ -265,12 +264,7 @@ export const getFormByToken = async (req: Request, res: Response) => {
       revisionId: string;
     };
 
-    // Fetch form details using formId and revisionId
-    const formDetails = await fetchFormDetailsWithRevision(
-      pool,
-      formId,
-      revisionId
-    );
+    const formDetails = await fetchFormDetails(pool, formId, revisionId);
     if (!formDetails) {
       return res
         .status(404)
@@ -399,14 +393,14 @@ export const submitFormResponse = async (req: Request, res: Response) => {
     for (const [questionId, answerDetails] of Object.entries<AnswerDetails>(
       answers
     )) {
-      let score = answerDetails.grade ? answerDetails.grade.score : 0; // Use score from grade if available, otherwise use 0
+      let score = answerDetails.grade ? answerDetails.grade.score : 0;
       let feedback = answerDetails.grade
         ? JSON.stringify(answerDetails.grade.feedback)
-        : null; // Store feedback as a JSON string if available
+        : null;
 
       const answerValue = answerDetails.textAnswers
         ? JSON.stringify(answerDetails.textAnswers.answers)
-        : "{}"; // Convert answers to JSON string
+        : "{}";
 
       const insertAnswerQuery = `
                 INSERT INTO answers (response_id, question_id, value, score, feedback)
@@ -428,6 +422,7 @@ export const submitFormResponse = async (req: Request, res: Response) => {
     );
 
     await pool.query("COMMIT");
+
     res.status(201).json({
       message: "Response submitted successfully",
       responseId: responseId,
@@ -439,64 +434,64 @@ export const submitFormResponse = async (req: Request, res: Response) => {
   }
 };
 
-async function fetchFormDetailsWithRevision(
-  pool: Pool,
-  formId: number,
-  revisionId: string
-) {
-  const query = `
-    SELECT 
-        f.form_id, f.revision_id, f.responder_uri, fi.title, fi.description, fs.settings_id, qs.is_quiz,
-        json_agg(json_build_object(
-            'section_id', s.section_id, 
-            'title', s.title, 
-            'description', s.description,
-            'seq_order', s.seq_order,
-            'items', (SELECT json_agg(json_build_object(
-                'item_id', i.item_id, 
-                'title', i.title, 
-                'description', i.description, 
-                'kind', i.kind,
-                'questions', (SELECT json_agg(json_build_object(
-                    'question_id', q.question_id, 
-                    'required', q.required, 
-                    'kind', q.kind,
-                    'grading', (SELECT json_build_object(
-                        'grading_id', g.grading_id,
-                        'point_value', g.point_value,
-                        'when_right', g.when_right,
-                        'when_wrong', g.when_wrong,
-                        'general_feedback', g.general_feedback,
-                        'answer_key', g.answer_key,
-                        'auto_feedback', g.auto_feedback
-                    ) FROM gradings g WHERE g.grading_id = q.grading_id),
-                    'options', (CASE WHEN q.kind = 'choice_question' THEN (
-                        SELECT json_agg(json_build_object(
-                            'option_id', o.option_id,
-                            'value', o.value,
-                            'image_id', o.image_id,
-                            'is_other', o.is_other,
-                            'goto_action', o.goto_action
-                        )) FROM options o WHERE o.question_id = q.question_id
-                    ) ELSE NULL END)
-                )) FROM questions q JOIN question_items qi ON q.question_id = qi.question_id WHERE qi.item_id = i.item_id)
-            )) FROM items i WHERE i.section_id = s.section_id)
-        )) AS sections
-    FROM forms f
-    JOIN form_info fi ON f.info_id = fi.info_id
-    JOIN form_settings fs ON f.settings_id = fs.settings_id
-    LEFT JOIN quiz_settings qs ON fs.quiz_settings_id = qs.quiz_settings_id
-    JOIN sections s ON f.form_id = s.form_id
-    WHERE f.form_id = $1 AND f.revision_id = $2
-    GROUP BY f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz;
-  `;
-  const details = await pool.query(query, [formId, revisionId]);
-  return details.rows.length ? details.rows[0] : null;
-}
+// async function fetchFormDetailsWithRevision(
+//   pool: Pool,
+//   formId: number,
+//   revisionId: string
+// ) {
+//   const query = `
+//     SELECT
+//         f.form_id, f.revision_id, f.responder_uri, fi.title, fi.description, fs.settings_id, qs.is_quiz,
+//         json_agg(json_build_object(
+//             'section_id', s.section_id,
+//             'title', s.title,
+//             'description', s.description,
+//             'seq_order', s.seq_order,
+//             'items', (SELECT json_agg(json_build_object(
+//                 'item_id', i.item_id,
+//                 'title', i.title,
+//                 'description', i.description,
+//                 'kind', i.kind,
+//                 'questions', (SELECT json_agg(json_build_object(
+//                     'question_id', q.question_id,
+//                     'required', q.required,
+//                     'kind', q.kind,
+//                     'grading', (SELECT json_build_object(
+//                         'grading_id', g.grading_id,
+//                         'point_value', g.point_value,
+//                         'when_right', g.when_right,
+//                         'when_wrong', g.when_wrong,
+//                         'general_feedback', g.general_feedback,
+//                         'answer_key', g.answer_key,
+//                         'auto_feedback', g.auto_feedback
+//                     ) FROM gradings g WHERE g.grading_id = q.grading_id),
+//                     'options', (CASE WHEN q.kind = 'choice_question' THEN (
+//                         SELECT json_agg(json_build_object(
+//                             'option_id', o.option_id,
+//                             'value', o.value,
+//                             'image_id', o.image_id,
+//                             'is_other', o.is_other,
+//                             'goto_action', o.goto_action
+//                         )) FROM options o WHERE o.question_id = q.question_id
+//                     ) ELSE NULL END)
+//                 )) FROM questions q JOIN question_items qi ON q.question_id = qi.question_id WHERE qi.item_id = i.item_id)
+//             )) FROM items i WHERE i.section_id = s.section_id)
+//         )) AS sections
+//     FROM forms f
+//     JOIN form_info fi ON f.info_id = fi.info_id
+//     JOIN form_settings fs ON f.settings_id = fs.settings_id
+//     LEFT JOIN quiz_settings qs ON fs.quiz_settings_id = qs.quiz_settings_id
+//     JOIN sections s ON f.form_id = s.form_id
+//     WHERE f.form_id = $1 AND f.revision_id = $2
+//     GROUP BY f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz;
+//   `;
+//   const details = await pool.query(query, [formId, revisionId]);
+//   return details.rows.length ? details.rows[0] : null;
+// }
 
 async function updateOrCreateSettings(
   pool: Pool,
-  settings: any,
+  settings: QuizSettings,
   form_id: number
 ) {
   if (settings && settings.hasOwnProperty("is_quiz")) {
@@ -617,7 +612,6 @@ async function handleChoiceQuestion(
   question: Question,
   question_id: number
 ) {
-
   await pool.query(`DELETE FROM options WHERE question_id = $1`, [question_id]);
 
   await pool.query(
@@ -629,7 +623,7 @@ async function handleChoiceQuestion(
     let validatedImageId = await validateImageId(
       pool,
       choice.image_id as number
-    ); 
+    );
     await pool.query(
       `INSERT INTO options (question_id, value, image_id, is_other, goto_action) 
        VALUES ($1, $2, $3, $4, $5)`,
@@ -704,7 +698,7 @@ async function ensureFeedbackExists(pool: Pool, feedbackIds: number[]) {
         let insertFeedback = await pool.query(
           `INSERT INTO feedbacks (text) VALUES ('Default feedback') RETURNING feedback_id`
         );
-        id = insertFeedback.rows[0].feedback_id; 
+        id = insertFeedback.rows[0].feedback_id;
       }
       if (i === 0) resultIds.when_right = id;
       if (i === 1) resultIds.when_wrong = id;
@@ -714,53 +708,61 @@ async function ensureFeedbackExists(pool: Pool, feedbackIds: number[]) {
   return resultIds;
 }
 
-async function fetchFormDetails(pool: Pool, form_id: number) {
+async function fetchFormDetails(
+  pool: Pool,
+  formId: number,
+  revisionId?: string
+) {
+  const revisionCondition = revisionId ? `AND f.revision_id = $2` : "";
+  const queryParams = [formId];
+  if (revisionId) queryParams.push(parseInt(revisionId));
+
   const query = `
-    SELECT 
-        f.form_id, f.revision_id, f.responder_uri, fi.title, fi.description, fs.settings_id, qs.is_quiz,
-        json_agg(json_build_object(
-            'section_id', s.section_id, 
-            'title', s.title, 
-            'description', s.description,
-            'seq_order', s.seq_order,
-            'items', (SELECT json_agg(json_build_object(
-                'item_id', i.item_id, 
-                'title', i.title, 
-                'description', i.description, 
-                'kind', i.kind,
-                'questions', (SELECT json_agg(json_build_object(
-                    'question_id', q.question_id, 
-                    'required', q.required, 
-                    'kind', q.kind,
-                    'grading', (SELECT json_build_object(
-                        'grading_id', g.grading_id,
-                        'point_value', g.point_value,
-                        'when_right', g.when_right,
-                        'when_wrong', g.when_wrong,
-                        'general_feedback', g.general_feedback,
-                        'answer_key', g.answer_key,
-                        'auto_feedback', g.auto_feedback
-                    ) FROM gradings g WHERE g.grading_id = q.grading_id),
-                    'options', (CASE WHEN q.kind = 'choice_question' THEN (
-                        SELECT json_agg(json_build_object(
-                            'option_id', o.option_id,
-                            'value', o.value,
-                            'image_id', o.image_id,
-                            'is_other', o.is_other,
-                            'goto_action', o.goto_action
-                        )) FROM options o WHERE o.question_id = q.question_id
-                    ) ELSE NULL END)
-                )) FROM questions q JOIN question_items qi ON q.question_id = qi.question_id WHERE qi.item_id = i.item_id)
-            )) FROM items i WHERE i.section_id = s.section_id)
-        )) AS sections
-    FROM forms f
-    LEFT JOIN form_info fi ON f.info_id = fi.info_id
-    LEFT JOIN form_settings fs ON f.settings_id = fs.settings_id
-    LEFT JOIN quiz_settings qs ON fs.quiz_settings_id = qs.quiz_settings_id
-    LEFT JOIN sections s ON f.form_id = s.form_id
-    WHERE f.form_id = $1
-    GROUP BY f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz;
-  `;
-  const details = await pool.query(query, [form_id]);
-  return details.rows[0];
+        SELECT 
+            f.form_id, f.revision_id, f.responder_uri, fi.title, fi.description, fs.settings_id, qs.is_quiz,
+            json_agg(json_build_object(
+                'section_id', s.section_id, 
+                'title', s.title, 
+                'description', s.description,
+                'seq_order', s.seq_order,
+                'items', (SELECT json_agg(json_build_object(
+                    'item_id', i.item_id, 
+                    'title', i.title, 
+                    'description', i.description, 
+                    'kind', i.kind,
+                    'questions', (SELECT json_agg(json_build_object(
+                        'question_id', q.question_id, 
+                        'required', q.required, 
+                        'kind', q.kind,
+                        'grading', (SELECT json_build_object(
+                            'grading_id', g.grading_id,
+                            'point_value', g.point_value,
+                            'when_right', g.when_right,
+                            'when_wrong', g.when_wrong,
+                            'general_feedback', g.general_feedback,
+                            'answer_key', g.answer_key,
+                            'auto_feedback', g.auto_feedback
+                        ) FROM gradings g WHERE g.grading_id = q.grading_id),
+                        'options', (CASE WHEN q.kind = 'choice_question' THEN (
+                            SELECT json_agg(json_build_object(
+                                'option_id', o.option_id,
+                                'value', o.value,
+                                'image_id', o.image_id,
+                                'is_other', o.is_other,
+                                'goto_action', o.goto_action
+                            )) FROM options o WHERE o.question_id = q.question_id
+                        ) ELSE NULL END)
+                    )) FROM questions q JOIN question_items qi ON q.question_id = qi.question_id WHERE qi.item_id = i.item_id)
+                )) FROM items i WHERE i.section_id = s.section_id)
+            )) AS sections
+        FROM forms f
+        LEFT JOIN form_info fi ON f.info_id = fi.info_id
+        LEFT JOIN form_settings fs ON f.settings_id = fs.settings_id
+        LEFT JOIN quiz_settings qs ON fs.quiz_settings_id = qs.quiz_settings_id
+        LEFT JOIN sections s ON f.form_id = s.form_id
+        WHERE f.form_id = $1 ${revisionCondition}
+        GROUP BY f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz;
+    `;
+  const details = await pool.query(query, queryParams);
+  return details.rows.length ? details.rows[0] : null;
 }
