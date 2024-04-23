@@ -3,26 +3,6 @@ export type QuizSettings = {
   is_quiz: boolean;
 };
 
-// export type Section = {
-//   title: string;
-//   description: string;
-//   seq_order: number;
-//   items: Item[];
-// };
-
-// export type Item = {
-//   title: string;
-//   description: string;
-//   kind: string;
-//   question?: Question;
-// };
-
-// export type Question = {
-//   question_id: string;
-//   required: boolean;
-//   kind: string;
-// };
-
 export interface Option {
   value: string;
   image_id?: number;
@@ -48,10 +28,9 @@ export interface Question {
     | "file_upload_question"
     | "row_question";
   grading?: Grading;
-  options?: QuestionOptions; // Add this line to include options for choice questions
+  options?: QuestionOptions;
 }
 
-// Define the structure for grading details
 export interface Grading {
   point_value: number;
   when_right: number;
@@ -71,7 +50,6 @@ export interface Item {
   questions?: Question[];  // Used for question groups, thus it's an array
 }
 
-// Example of a Section interface which uses Item
 export interface Section {
   section_id?: number;
   title: string;
