@@ -10,7 +10,6 @@ import {
   Section,
 } from "../types";
 import { Pool } from "pg";
-import { ParsedQs } from "qs";
 
 export type AuthRequest = Request & { user?: { userId: string } };
 
@@ -52,12 +51,8 @@ export const createForm = async (req: AuthRequest, res: Response) => {
     const forms_result = await pool.query(forms_query, forms_values);
     const form_id = forms_result.rows[0].form_id;
 
-    if (sections && sections.length > 0) {
-      for (const section of sections) {
-        await handleSection(pool, form_id, section);
-      }
-    }
     await pool.query("COMMIT");
+
     res.status(201).json({
       message: "Form created successfully",
       formId: form_id,
@@ -244,7 +239,6 @@ export const getFormsByUser = async (req: AuthRequest, res: Response) => {
   }
 };
 
-//Access shared Form
 export const getFormByToken = async (req: Request, res: Response) => {
   if (!req.query.token) {
     return res.status(400).json({ error: "Token is required" });
@@ -324,10 +318,7 @@ export const getSpecificFormResponse = async (
   }
 };
 
-export const getAllFormResponses = async (
-  req: AuthRequest,
-  res: Response
-) => {
+export const getAllFormResponses = async (req: AuthRequest, res: Response) => {
   const { formId } = req.params;
   const userId = req.user?.userId;
 
@@ -338,7 +329,6 @@ export const getAllFormResponses = async (
   }
 
   try {
-    // First, verify that the logged-in user is the owner of the form
     const ownerCheck = await pool.query(
       "SELECT owner_id FROM forms WHERE form_id = $1",
       [formId]
@@ -354,7 +344,6 @@ export const getAllFormResponses = async (
         .json({ error: "User is not authorized to view these responses." });
     }
 
-    // If the user is authorized, proceed to fetch all responses with full details
     const query = `
             SELECT r.response_id, r.form_id, r.responder_email, r.create_time, r.last_submitted_time, r.total_score,
                    json_agg(json_build_object(
@@ -374,7 +363,7 @@ export const getAllFormResponses = async (
       res.json(
         rows.map((row) => ({
           ...row,
-          answers: row.answers, // directly use the JSON aggregated in PostgreSQL
+          answers: row.answers,
         }))
       );
     } else {
@@ -385,7 +374,6 @@ export const getAllFormResponses = async (
     res.status(500).send({ error: "Failed to list form responses." });
   }
 };
-
 
 export const submitFormResponse = async (req: Request, res: Response) => {
   const { formId } = req.params;
@@ -590,10 +578,8 @@ async function handleQuestion(pool: Pool, question: Question, item_id: number) {
   );
 
   if (existingQuestion.rows.length > 0) {
-    // Question exists, get the ID
     question_id = existingQuestion.rows[0].question_id;
 
-    // Update existing question details if necessary (e.g., if kind or required status has changed)
     await pool.query(
       `UPDATE questions SET required = $1, kind = $2 WHERE question_id = $3`,
       [question.required, question.kind, question_id]
@@ -631,10 +617,9 @@ async function handleChoiceQuestion(
   question: Question,
   question_id: number
 ) {
-  // Delete existing options (if this is not desirable, further checks need to be implemented)
+
   await pool.query(`DELETE FROM options WHERE question_id = $1`, [question_id]);
 
-  // Insert new options
   await pool.query(
     `INSERT INTO choice_questions (question_id, type, shuffle) VALUES ($1, $2, $3) ON CONFLICT (question_id) DO UPDATE SET type = EXCLUDED.type, shuffle = EXCLUDED.shuffle`,
     [question_id, question.options?.type, question.options?.shuffle]
@@ -644,7 +629,7 @@ async function handleChoiceQuestion(
     let validatedImageId = await validateImageId(
       pool,
       choice.image_id as number
-    ); // Ensures image_id is valid or null
+    ); 
     await pool.query(
       `INSERT INTO options (question_id, value, image_id, is_other, goto_action) 
        VALUES ($1, $2, $3, $4, $5)`,
@@ -719,7 +704,7 @@ async function ensureFeedbackExists(pool: Pool, feedbackIds: number[]) {
         let insertFeedback = await pool.query(
           `INSERT INTO feedbacks (text) VALUES ('Default feedback') RETURNING feedback_id`
         );
-        id = insertFeedback.rows[0].feedback_id; // use new feedback id
+        id = insertFeedback.rows[0].feedback_id; 
       }
       if (i === 0) resultIds.when_right = id;
       if (i === 1) resultIds.when_wrong = id;
