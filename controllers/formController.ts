@@ -114,7 +114,7 @@ export const updateForm = async (req: AuthRequest, res: Response) => {
       process.env.JWT_SECRET!,
       { expiresIn: "3d" }
     );
-    const newResponderUri = `${process.env.APP_DOMAIN_NAME}/forms/respond?token=${newToken}`;
+    const newResponderUri = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/respond?token=${newToken}`;
 
     await pool.query(
       "UPDATE forms SET revision_id = $1, responder_uri = $2 WHERE form_id = $3",

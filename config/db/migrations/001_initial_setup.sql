@@ -70,6 +70,8 @@ CREATE TABLE IF NOT EXISTS forms (
     revision_id VARCHAR NOT NULL,
     responder_uri VARCHAR NOT NULL,
     settings_id INTEGER,
+    owner_email VARCHAR(255),
+    response_editable_duration INTERVAL DEFAULT '24 hours',
     FOREIGN KEY (info_id) REFERENCES form_info(info_id),
     FOREIGN KEY (settings_id) REFERENCES form_settings(settings_id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -106,9 +108,6 @@ CREATE TABLE IF NOT EXISTS items (
 -- --pageBreakItem: Starts a new page with a title.
 -- --textItem: Displays a title and description on the page.
 -- --imageItem: Displays an image on the page.
-
-
- --TODO: ADD QuestionGroupItems // For a question with multiple Questions Grouped Together
 
 --TODO: ADD Image Items
 
@@ -165,6 +164,8 @@ CREATE TABLE IF NOT EXISTS form_responses (
     response_id SERIAL PRIMARY KEY,
     form_id INTEGER NOT NULL,
     responder_email VARCHAR(255),  -- To store respondent's email if collected
+    response_link VARCHAR(255),
+    response_expires_at TIMESTAMP WITH TIME ZONE,
     create_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_submitted_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     total_score INTEGER DEFAULT 0,  -- Total score for quiz responses
@@ -182,7 +183,7 @@ CREATE TABLE IF NOT EXISTS answers (
     FOREIGN KEY (question_id) REFERENCES questions(question_id)
 );
 
--- Navigation rules: conditional logic to determine the flow of sections based on answers
+-- conditional logic to determine the flow of sections based on answers
 CREATE TABLE IF NOT EXISTS navigation_rules (
     rule_id SERIAL PRIMARY KEY,
     section_id SERIAL NOT NULL,
