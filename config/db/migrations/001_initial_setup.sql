@@ -70,8 +70,8 @@ CREATE TABLE IF NOT EXISTS forms (
     revision_id VARCHAR NOT NULL,
     responder_uri VARCHAR NOT NULL,
     settings_id INTEGER,
-    owner_email VARCHAR(255),
-    response_editable_duration INTERVAL DEFAULT '24 hours',
+    update_window_hours INTEGER DEFAULT 24,
+    wants_email_updates BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (info_id) REFERENCES form_info(info_id),
     FOREIGN KEY (settings_id) REFERENCES form_settings(settings_id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -164,8 +164,7 @@ CREATE TABLE IF NOT EXISTS form_responses (
     response_id SERIAL PRIMARY KEY,
     form_id INTEGER NOT NULL,
     responder_email VARCHAR(255),  -- To store respondent's email if collected
-    response_link VARCHAR(255),
-    response_expires_at TIMESTAMP WITH TIME ZONE,
+    response_token VARCHAR UNIQUE,
     create_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_submitted_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     total_score INTEGER DEFAULT 0,  -- Total score for quiz responses

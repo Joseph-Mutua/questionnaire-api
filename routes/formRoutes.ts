@@ -28,7 +28,6 @@ router
   .patch(authenticateUser, updateForm)
   .delete(authenticateUser, deleteForm);
 
-
 // Routes for form responses
 router
   .route("/:formId/responses")

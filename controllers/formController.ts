@@ -13,6 +13,7 @@ import {
 import { Pool } from "pg";
 
 import { AuthRequest } from "../middleware/auth";
+import { loadEmailTemplate, sendEmail } from "../utils/Mailer";
 
 export const createForm = async (req: AuthRequest, res: Response) => {
   const user_id = req.user?.user_id;
@@ -120,6 +121,14 @@ export const updateForm = async (req: AuthRequest, res: Response) => {
       "UPDATE forms SET revision_id = $1, responder_uri = $2 WHERE form_id = $3",
       [newRevisionId, newResponderUri, form_id]
     );
+
+    if (sections && sections.updateWindowHours !== undefined) {
+      // Only update if provided in the request body
+      await pool.query(
+        "UPDATE forms SET update_window_hours = $1 WHERE form_id = $2",
+        [sections.updateWindowHours, form_id]
+      );
+    }
 
     for (const section of sections) {
       let section_id = await handleSection(pool, form_id, section);
@@ -366,7 +375,7 @@ export const getAllFormResponses = async (req: AuthRequest, res: Response) => {
 };
 export const submitFormResponse = async (req: Request, res: Response) => {
   const { formId } = req.params;
-  const { answers, responderEmail } = req.body;
+  const { answers, respondentEmail } = req.body;
 
   try {
     await pool.query("BEGIN");
@@ -378,7 +387,7 @@ export const submitFormResponse = async (req: Request, res: Response) => {
         `;
     const responseResult = await pool.query(insertResponseQuery, [
       formId,
-      responderEmail,
+      respondentEmail,
     ]);
     const responseId = responseResult.rows[0].response_id;
 
@@ -413,6 +422,26 @@ export const submitFormResponse = async (req: Request, res: Response) => {
       "UPDATE form_responses SET total_score = $1 WHERE response_id = $2",
       [totalScore, responseId]
     );
+
+    if (respondentEmail) {
+      await sendSubmissionConfirmation(
+        respondentEmail,
+        responseId,
+        Number(formId)
+      );
+      await sendNewResponseAlert(Number(formId), responseId, respondentEmail);
+
+      // Update form_responses table with response token
+      const responseToken = jwt.sign(
+        { responseId, formId },
+        process.env.JWT_SECRET!,
+        { expiresIn: "1d" }
+      );
+      await pool.query(
+        "UPDATE form_responses SET response_token = $1 WHERE response_id = $2",
+        [responseToken, responseId]
+      );
+    }
 
     await pool.query("COMMIT");
 
@@ -639,6 +668,96 @@ async function ensureFeedbackExists(pool: Pool, feedbackIds: number[]) {
   return resultIds;
 }
 
+async function sendSubmissionConfirmation(
+  recipientEmail: string,
+  responseId: number,
+  formId: number
+) {
+  const responseLink = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/${formId}/responses/${responseId}`;
+
+  const confirmationTemplate = loadEmailTemplate(
+    "respondentSubmissionConfirmation"
+  );
+
+  const emailBody = confirmationTemplate.replace(
+    "{{responseLink}}",
+    responseLink
+  );
+
+  try {
+    await sendEmail(recipientEmail, "Form Submission Confirmation", emailBody);
+  } catch (error) {
+    console.error("Error sending confirmation email.", error);
+  }
+}
+
+async function sendNewResponseAlert(
+  formId: number,
+  responseId: number,
+  responderEmail: string
+) {
+  const ownerEmail = await getFormOwnerEmail(formId);
+  if (!ownerEmail) {
+    console.error(`Form owner email not found for form ${formId}`);
+    return;
+  }
+
+  const responseLink = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/${formId}/responses/${responseId}`;
+
+  const alertTemplate = loadEmailTemplate("ownerNewResponseNotification");
+
+  // Get basic submission details
+  const submissionDetails = await pool.query(
+    "SELECT title FROM form_info WHERE info_id IN (SELECT info_id FROM forms WHERE form_id = $1)",
+    [formId]
+  );
+
+  const { title } = submissionDetails.rows[0];
+
+  // Replace placeholders in the template
+  const emailBody = alertTemplate
+    .replace("{{formTitle}}", title)
+    .replace("{{responderEmail}}", responderEmail)
+    .replace("{{responseLink}}", responseLink);
+
+  try {
+    await sendEmail(ownerEmail, `New Response for Form "${title}"`, emailBody);
+  } catch (error) {
+    console.error("Error sending new response alert.", error);
+  }
+}
+
+async function getFormOwnerEmail(formId: number): Promise<string | null> {
+  const result = await pool.query(
+    "SELECT email FROM users WHERE user_id = (SELECT owner_id FROM forms WHERE form_id = $1)",
+    [formId]
+  );
+  return result.rows[0]?.email ?? null;
+}
+
+export const getViewResponse = async (req: Request, res: Response) => {
+  const { formId, responseId } = req.params;
+  const { responseToken } = req.query;
+
+  if (!responseToken) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    jwt.verify(responseToken.toString(), process.env.JWT_SECRET!); // Verify token
+  } catch (err) {
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
+
+  try {
+    const responseDetails = await getSpecificFormResponse(req, res);
+    // ... render a view with the responseDetails
+  } catch (error) {
+    console.error("Error fetching form response:", error);
+    res.status(500).send({ error: "Failed to fetch form response." });
+  }
+};
+
 async function fetchFormDetails(
   pool: Pool,
   formId: number,
@@ -649,7 +768,7 @@ async function fetchFormDetails(
   if (revisionId) queryParams.push(revisionId);
   const query = `
         SELECT 
-            f.form_id, f.revision_id, f.responder_uri, fi.title, fi.description, fs.settings_id, qs.is_quiz,
+            f.form_id, f.revision_id, f.responder_uri, f.update_window_hours, f.wants_email_updates, fi.title, fi.description, fs.settings_id, qs.is_quiz,
             json_agg(json_build_object(
                 'section_id', s.section_id, 
                 'title', s.title, 
