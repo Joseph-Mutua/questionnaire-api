@@ -34,13 +34,21 @@ app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/forms", formRoutes);
 
 
-runMigrations();
-connectDB()
-  .then(() => {
+async function initializeApp() {
+  try {
+    await runMigrations();
+    console.log("Database migrations completed successfully.");
+    await connectDB();
+    console.log("Database connection established successfully.");
+
     app.listen(port, () => {
       console.log(`[server]: Server is running at http://localhost:${port}`);
     });
-  })
-  .catch((error) => {
-    console.error("Failed to connect to the database!", error);
-  });
+
+  } catch (error) {
+    console.error("Failed to initialize the application:", error);
+    process.exit(1); 
+  }
+}
+
+initializeApp();

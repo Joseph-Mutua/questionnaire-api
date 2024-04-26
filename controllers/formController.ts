@@ -12,10 +12,10 @@ import {
 } from "../types";
 import { Pool } from "pg";
 
-export type AuthRequest = Request & { user?: { userId: string } };
+import { AuthRequest } from "../middleware/auth";
 
 export const createForm = async (req: AuthRequest, res: Response) => {
-  const user_id = req.user?.userId;
+  const user_id = req.user?.user_id;
   const { title, description, sections } = req.body;
 
   if (!user_id) {
@@ -24,7 +24,6 @@ export const createForm = async (req: AuthRequest, res: Response) => {
 
   try {
     await pool.query("BEGIN");
-
     const form_info_query =
       "INSERT INTO form_info(title, description) VALUES($1, $2) RETURNING info_id";
     const form_info_values = [title, description];
@@ -35,11 +34,15 @@ export const createForm = async (req: AuthRequest, res: Response) => {
 
     const revisionId = "v1.0";
     const token = jwt.sign(
-      { formId: form_info_result.rows[0].info_id, permissions: "fill" },
+      {
+        formId: form_info_result.rows[0].info_id,
+        permissions: "fill",
+        revisionId,
+      },
       process.env.JWT_SECRET!,
       { expiresIn: "3d" }
     );
-    const responderUri = `${process.env.APP_DOMAIN_NAME}/forms/respond?token=${token}`;
+    const responderUri = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/respond?token=${token}`;
 
     const forms_query =
       "INSERT INTO forms(owner_id, info_id, revision_id, responder_uri, settings_id) VALUES($1, $2, $3, $4, NULL) RETURNING form_id";
@@ -67,7 +70,7 @@ export const createForm = async (req: AuthRequest, res: Response) => {
 };
 
 export const updateForm = async (req: AuthRequest, res: Response) => {
-  const user_id = req.user?.userId;
+  const user_id = req.user?.user_id;
   const form_id = parseInt(req.params.id);
   const { sections, settings } = req.body;
 
@@ -158,7 +161,7 @@ export const getForm = async (req: AuthRequest, res: Response) => {
 };
 
 export const deleteForm = async (req: AuthRequest, res: Response) => {
-  const user_id = req.user?.userId;
+  const user_id = req.user?.user_id;
   const form_id = parseInt(req.params.id);
 
   if (!user_id) {
@@ -215,7 +218,7 @@ export const deleteForm = async (req: AuthRequest, res: Response) => {
 };
 
 export const getFormsByUser = async (req: AuthRequest, res: Response) => {
-  const user_id = req.user?.userId;
+  const user_id = req.user?.user_id;
   if (!user_id) {
     return res.status(403).json({ error: "User must be logged in." });
   }
@@ -274,17 +277,11 @@ export const getFormByToken = async (req: Request, res: Response) => {
     res.json(formDetails);
   } catch (error) {
     console.error("Error verifying token or fetching form details:", error);
-    if (error instanceof jwt.JsonWebTokenError) {
-      return res.status(401).json({ error: "Invalid token." });
-    }
     return res.status(500).json({ error: "Failed to process request." });
   }
 };
 
-export const getSpecificFormResponse = async (
-  req: AuthRequest,
-  res: Response
-) => {
+export const getSpecificFormResponse = async (req: Request, res: Response) => {
   const { formId, responseId } = req.params;
   try {
     const query = `
@@ -311,12 +308,11 @@ export const getSpecificFormResponse = async (
     res.status(500).send({ error: "Failed to fetch form response." });
   }
 };
-
 export const getAllFormResponses = async (req: AuthRequest, res: Response) => {
   const { formId } = req.params;
-  const userId = req.user?.userId;
+  const user_id = req.user?.user_id;
 
-  if (!userId) {
+  if (!user_id) {
     return res
       .status(403)
       .json({ error: "User must be logged in to access form responses." });
@@ -332,7 +328,7 @@ export const getAllFormResponses = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: "Form not found." });
     }
 
-    if (ownerCheck.rows[0].owner_id !== userId) {
+    if (ownerCheck.rows[0].owner_id !== user_id) {
       return res
         .status(403)
         .json({ error: "User is not authorized to view these responses." });
@@ -368,12 +364,9 @@ export const getAllFormResponses = async (req: AuthRequest, res: Response) => {
     res.status(500).send({ error: "Failed to list form responses." });
   }
 };
-
 export const submitFormResponse = async (req: Request, res: Response) => {
   const { formId } = req.params;
   const { answers, responderEmail } = req.body;
-
-  console.log("Received answers:", answers);
 
   try {
     await pool.query("BEGIN");
@@ -433,7 +426,6 @@ export const submitFormResponse = async (req: Request, res: Response) => {
     res.status(500).send({ error: "Failed to submit form response." });
   }
 };
-
 async function updateOrCreateSettings(
   pool: Pool,
   settings: QuizSettings,
@@ -470,7 +462,6 @@ async function updateOrCreateSettings(
   }
   return null;
 }
-
 async function handleSection(pool: Pool, form_id: number, section: Section) {
   const sectionResult = await pool.query(
     "INSERT INTO sections (form_id, title, description, seq_order) VALUES ($1, $2, $3, $4) ON CONFLICT (form_id, seq_order) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description RETURNING section_id",
@@ -478,7 +469,6 @@ async function handleSection(pool: Pool, form_id: number, section: Section) {
   );
   return sectionResult.rows[0].section_id;
 }
-
 async function handleItem(
   pool: Pool,
   form_id: number,
@@ -506,7 +496,6 @@ async function handleItem(
     }
   }
 }
-
 async function handleQuestion(pool: Pool, question: Question, item_id: number) {
   let question_id;
 
@@ -551,7 +540,6 @@ async function handleQuestion(pool: Pool, question: Question, item_id: number) {
 
   return question_id;
 }
-
 async function handleChoiceQuestion(
   pool: Pool,
   question: Question,
@@ -582,7 +570,6 @@ async function handleChoiceQuestion(
     );
   }
 }
-
 async function validateImageId(pool: Pool, image_id: number) {
   if (image_id === null || image_id === undefined) {
     return null;
@@ -597,7 +584,6 @@ async function validateImageId(pool: Pool, image_id: number) {
   }
   return image_id;
 }
-
 async function handleGrading(
   pool: Pool,
   question_id: number,
@@ -659,9 +645,8 @@ async function fetchFormDetails(
   revisionId?: string
 ) {
   const revisionCondition = revisionId ? `AND f.revision_id = $2` : "";
-  const queryParams = [formId];
-  if (revisionId) queryParams.push(parseInt(revisionId));
-
+  const queryParams: (number | string)[] = [formId];
+  if (revisionId) queryParams.push(revisionId);
   const query = `
         SELECT 
             f.form_id, f.revision_id, f.responder_uri, fi.title, fi.description, fs.settings_id, qs.is_quiz,
@@ -708,6 +693,7 @@ async function fetchFormDetails(
         WHERE f.form_id = $1 ${revisionCondition}
         GROUP BY f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz;
     `;
+
   const details = await pool.query(query, queryParams);
   return details.rows.length ? details.rows[0] : null;
 }

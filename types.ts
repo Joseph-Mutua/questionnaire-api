@@ -40,14 +40,14 @@ export interface Grading {
   auto_feedback: boolean;
 }
 
-// Adjust the Item interface to include 'questions' for question groups
+
 export interface Item {
-  item_id?: number;  // Optional, depends on if it's being returned from the DB
+  item_id: number; 
   title: string;
   description: string;
-  kind: string;  // 'question_item', 'question_group_item', etc.
-  question?: Question;  // Used for single-question items
-  questions?: Question[];  // Used for question groups, thus it's an array
+  kind: string; 
+  question?: Question;  
+  questions?: Question[];  
 }
 
 export interface Section {

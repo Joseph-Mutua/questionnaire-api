@@ -27,11 +27,11 @@ CREATE TABLE IF NOT EXISTS feedbacks (
 -- Handles scoring and feedback mechanisms for quiz questions
 CREATE TABLE IF NOT EXISTS gradings (
     grading_id SERIAL PRIMARY KEY,
-    point_value INTEGER NOT NULL,
-    when_right INTEGER,
+    point_value INTEGER NOT NULL, --Points For a Correct Answer
+    when_right INTEGER, --Links to the feedbacks table to fetch the feedback provided when the answer is correct.
     when_wrong INTEGER,
-    general_feedback INTEGER,
-    answer_key TEXT,  -- store possible correct answers as JSON
+    general_feedback INTEGER, --Links to the feedbacks table to provide general feedback applicable to the question regardless of the respondent's answer being right or wrong
+    answer_key TEXT,  -- Store possible correct answers as JSON
     auto_feedback BOOLEAN DEFAULT FALSE,  -- automate feedback provision
     FOREIGN KEY (when_right) REFERENCES feedbacks(feedback_id),
     FOREIGN KEY (when_wrong) REFERENCES feedbacks(feedback_id),
@@ -122,13 +122,13 @@ CREATE TABLE IF NOT EXISTS questions (
 );
 
 
---textQuestion: respondent can enter a free text response.
+--textQuestion: respondent can enter a free text response. e.g "Please describe your experience with our service."
 --scaleQuestion: respondent can choose a number from a range.
 --dateQuestion: respondent can choose a date.
 --timeQuestion: respondent can choose a time.
 --fileUploadQuestion: respondent can upload a file.
---rowQuestion: respondent can enter multiple free text responses.
-
+--rowQuestion: respondent can enter multiple free text responses. i.e in row/tabular format e.g A budget allocation
+--              form where each row specifies a different budget item, and the respondent needs to input amounts or percentages.
 
 -- Links form items to their respective questions, enabling dynamic form structures.
 CREATE TABLE IF NOT EXISTS question_items (

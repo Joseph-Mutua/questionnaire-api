@@ -13,17 +13,28 @@ import { authenticateUser } from "../middleware/auth";
 
 const router = Router();
 
-router.post("/", authenticateUser, createForm);
-router.patch("/:id", authenticateUser, updateForm);
+// Routes for form management
+router
+  .route("/")
+  .post(authenticateUser, createForm)
+  .get(authenticateUser, getForm);
 
+//Public route for accessing form
 router.get("/respond", getFormByToken);
 
+router
+  .route("/:id")
+  .get(authenticateUser, getForm)
+  .patch(authenticateUser, updateForm)
+  .delete(authenticateUser, deleteForm);
+
+
+// Routes for form responses
+router
+  .route("/:formId/responses")
+  .get(authenticateUser, getAllFormResponses)
+  .post(submitFormResponse);
+
 router.get("/:formId/responses/:responseId", getSpecificFormResponse);
-router.get("/:formId/responses", authenticateUser, getAllFormResponses);
-
-router.get("/:id", authenticateUser, getForm);
-router.delete("/:id", authenticateUser, deleteForm);
-
-router.post("/:formId/responses", submitFormResponse);
 
 export default router;
