@@ -1,21 +1,23 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction, ErrorRequestHandler } from "express";
+import HttpError from "../utils/httpError";
 
-interface CustomError extends Error {
-  statusCode?: number;
-}
-
-module.exports = (
-  err: CustomError,
+const errorHandler: ErrorRequestHandler = (
+  err: Error,
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  err.statusCode = err.statusCode || 500;
+  let statusCode = 500;
+  let message = "Something went wrong";
 
-  err.message = err.message || "Internal Server Error";
+  if (err instanceof HttpError) {
+    statusCode = err.statusCode;
+    message = err.message;
+  }
 
-  res.status(err.statusCode).json({
-    success: false,
-    message: err.message,
-  });
+  console.error(err);
+
+  res.status(statusCode).json({ error: message });
 };
+
+export default errorHandler; 

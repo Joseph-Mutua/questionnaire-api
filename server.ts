@@ -9,6 +9,7 @@ import { runMigrations } from "./config/db/migration";
 //Routes
 import userRoutes from "./routes/userRoutes";
 import formRoutes from "./routes/formRoutes";
+import  errorHandler  from "./middleware/error";
 
 if (process.env.NODE_ENV !== "PRODUCTION") {
   dotenv.config({
@@ -31,6 +32,8 @@ app.use(express.json());
 
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/forms", formRoutes);
+
+app.use(errorHandler);
 
 async function initializeApp() {
   try {
