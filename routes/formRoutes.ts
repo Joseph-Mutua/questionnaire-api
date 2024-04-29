@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-misused-promises */
 
-import { Router, Response,Request } from "express";
+import { Router, Response, Request } from "express";
 import { AuthRequest, authenticateUser } from "../middleware/auth";
 import { getSpecificFormResponse } from "../helpers/forms/formControllerHelpers";
 import HttpError from "../utils/httpError";
@@ -14,16 +14,11 @@ import {
   sendSubmissionConfirmation,
   updateOrCreateSettings,
 } from "../helpers/forms/formControllerHelpers";
-import {
-  FormDetailsRequestBody,
-  QuizSettings,
-  Section,
-} from "../types";
+import { FormDetailsRequestBody, QuizSettings, Section } from "../types";
 
 const router = Router();
 
 // Routes for form management
-
 router.post("/", authenticateUser, async (req: AuthRequest, res: Response) => {
   const user_id = req.user?.user_id;
   const { title, description } = req.body as {
@@ -401,7 +396,6 @@ router.post("/:formId/responses", async (req: Request, res: Response) => {
 //Get response by token
 router.get(
   "/:formId/responses/:responseId/token",
-
   async (req: Request, res: Response) => {
     const { responseToken } = req.query as { responseToken: string };
 

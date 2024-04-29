@@ -20,6 +20,7 @@ router.post("/register", async (req: Request, res: Response) => {
   const client = await pool.connect();
 
   await client.query("BEGIN");
+
   const insertUserText =
     "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING user_id, email";
   const insertUserValues = [email, hashedPassword];
@@ -27,39 +28,45 @@ router.post("/register", async (req: Request, res: Response) => {
     insertUserText,
     insertUserValues
   );
+
   await client.query("COMMIT");
   const user = result.rows[0];
   const token = generateToken(String(user.user_id));
   res.status(201).send({ user, token });
 });
 
-router.post("/login", async (req: Request, res: Response) => {
-  const { email, password } = req.body as {
-    email: string;
-    password: string;
-  };
+router.post(
+  "/login",
 
-  const findUserText = "SELECT user_id, password FROM users WHERE email = $1";
-  const findUserValues = [email];
-  const result = await pool.query<{ user_id: number; password: string }>(
-    findUserText,
-    findUserValues
-  );
+  async (req: Request, res: Response) => {
+    const { email, password } = req.body as {
+      email: string;
+      password: string;
+    };
 
-  if (result.rows.length === 0) {
-    throw new HttpError("User Not Found", 404);
+    const findUserText = "SELECT user_id, password FROM users WHERE email = $1";
+    const findUserValues = [email];
+
+    const result = await pool.query<{ user_id: number; password: string }>(
+      findUserText,
+      findUserValues
+    );
+
+    if (result.rows.length === 0) {
+      throw new HttpError("User Not Found", 404);
+    }
+
+    const user = result.rows[0];
+    const validPassword = await bcrypt.compare(password, user.password);
+
+    if (!validPassword) {
+      throw new HttpError("Invalid Credentials", 401);
+    }
+
+    const token = generateToken(String(user.user_id));
+    res.send({ user: { userId: user.user_id, email }, token });
   }
-
-  const user = result.rows[0];
-  const validPassword = await bcrypt.compare(password, user.password);
-
-  if (!validPassword) {
-    throw new HttpError("Invalid Credentials", 401);
-  }
-
-  const token = generateToken(String(user.user_id));
-  res.send({ user: { userId: user.user_id, email }, token });
-});
+);
 
 router.get(
   "/:userId/forms",
@@ -71,7 +78,10 @@ router.get(
     }
 
     const basicFormsQuery = "SELECT form_id FROM forms WHERE owner_id = $1";
-    const basicFormsResult = await pool.query<{ form_id: number }>(basicFormsQuery, [user_id]);
+    const basicFormsResult = await pool.query<{ form_id: number }>(
+      basicFormsQuery,
+      [user_id]
+    );
 
     if (basicFormsResult.rows.length === 0) {
       throw new HttpError("No forms found for this user.", 404);
