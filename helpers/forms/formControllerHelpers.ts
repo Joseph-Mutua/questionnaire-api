@@ -38,7 +38,6 @@ export async function updateOrCreateSettings(
       await pool.query(updateQuizSettingsQuery, [settings.is_quiz, settingsId]);
     }
 
-    // Update additional settings if provided
     if (
       settings.update_window_hours !== undefined &&
       settings.wants_email_updates !== undefined
@@ -54,17 +53,16 @@ export async function updateOrCreateSettings(
       ]);
     }
   } else {
-    // Create new quiz settings if needed
     let quizSettingsId = null;
     if (settings.hasOwnProperty("is_quiz")) {
-      const quizSettingsResult = await pool.query(
+      const quizSettingsResult = await pool.query<{ quiz_settings_id: number }>(
         "INSERT INTO quiz_settings (is_quiz) VALUES ($1) RETURNING quiz_settings_id",
         [settings.is_quiz]
       );
       quizSettingsId = quizSettingsResult.rows[0].quiz_settings_id;
     }
 
-    const formSettingsResult = await pool.query(
+    const formSettingsResult = await pool.query<{ settings_id: number }>(
       "INSERT INTO form_settings (quiz_settings_id, update_window_hours, wants_email_updates) VALUES ($1, $2, $3) RETURNING settings_id",
       [
         quizSettingsId,
@@ -87,7 +85,7 @@ export async function handleSection(
   form_id: number,
   section: Section
 ) {
-  const sectionResult = await pool.query(
+  const sectionResult = await pool.query<{ section_id: number }>(
     "INSERT INTO sections (form_id, title, description, seq_order) VALUES ($1, $2, $3, $4) ON CONFLICT (form_id, seq_order) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description RETURNING section_id",
     [form_id, section.title, section.description, section.seq_order]
   );
@@ -99,7 +97,7 @@ export async function handleItem(
   section_id: number,
   item: Item
 ) {
-  const itemResult = await pool.query(
+  const itemResult = await pool.query<{ item_id: number }>(
     `INSERT INTO items (form_id, section_id, title, description, kind) 
      VALUES ($1, $2, $3, $4, $5) 
      ON CONFLICT (form_id, title) DO UPDATE SET
@@ -127,7 +125,7 @@ export async function handleQuestion(
 ) {
   let question_id;
 
-  const existingQuestion = await pool.query(
+  const existingQuestion = await pool.query<{ question_id: number }>(
     `SELECT question_id FROM question_items WHERE item_id = $1 AND question_id IN (
       SELECT question_id FROM questions WHERE kind = $2 AND required = $3
     )`,
@@ -142,7 +140,7 @@ export async function handleQuestion(
       [question.required, question.kind, question_id]
     );
   } else {
-    const questionResult = await pool.query(
+    const questionResult = await pool.query<{ question_id: number }>(
       `INSERT INTO questions (required, kind) VALUES ($1, $2) RETURNING question_id`,
       [question.required, question.kind]
     );
@@ -323,7 +321,7 @@ export async function sendNewResponseAlert(
   const responseLink = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/${formId}/responses/${responseId}?responseToken=${responseToken}`;
   const alertTemplate = loadEmailTemplate("ownerNewResponseNotification");
 
-  const submissionDetails = await pool.query(
+  const submissionDetails = await pool.query<{ title: string }>(
     "SELECT title FROM form_info WHERE info_id IN (SELECT info_id FROM forms WHERE form_id = $1)",
     [formId]
   );
@@ -340,7 +338,7 @@ export async function sendNewResponseAlert(
 export async function getFormOwnerEmail(
   formId: number
 ): Promise<string | null> {
-  const result = await pool.query(
+  const result = await pool.query<{ email: string }>(
     "SELECT email FROM users WHERE user_id = (SELECT owner_id FROM forms WHERE form_id = $1)",
     [formId]
   );
@@ -403,7 +401,7 @@ export async function fetchFormDetails(
         WHERE f.form_id = $1 ${revisionCondition}
         GROUP BY f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz, fs.quiz_settings_id, fs.update_window_hours, fs.wants_email_updates;
     `;
-  const details = await pool.query(query, queryParams);
+  const details = await pool.query<FormDetails>(query, queryParams);
   return details.rows.length ? details.rows[0] : null;
 }
 
@@ -430,7 +428,6 @@ export const getSpecificFormResponse = async (req: Request, res: Response) => {
     throw new HttpError("Response not found.", 404);
   }
 };
-
 
 export const generateToken = (userId: string) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: "24h" });

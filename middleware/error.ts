@@ -1,11 +1,10 @@
-import { Request, Response, NextFunction, ErrorRequestHandler } from "express";
+import { Request, Response, ErrorRequestHandler } from "express";
 import HttpError from "../utils/httpError";
 
 const errorHandler: ErrorRequestHandler = (
   err: Error,
   req: Request,
   res: Response,
-  next: NextFunction
 ) => {
   let statusCode = 500;
   let message = "Something went wrong";

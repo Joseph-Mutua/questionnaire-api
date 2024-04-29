@@ -5,13 +5,6 @@ export type QuizSettings = {
   wants_email_updates: boolean,
 };
 
-// export interface Option {
-//   value: string;
-//   image_id?: number;
-//   is_other?: boolean;
-//   goto_action?: string;
-//   goto_section_id?: number;
-// }
 
 export interface QuestionOptions {
   type: "RADIO" | "CHECKBOX" | "DROP_DOWN" | "CHOICE_TYPE_UNSPECIFIED";
@@ -68,7 +61,7 @@ export interface FeedbackIds {
 
 export interface Grade {
   score: number;
-  feedback: any;  
+  feedback: string;  
 }
 
 
@@ -86,7 +79,7 @@ export interface AnswerDetails {
 // }
 
 export interface FormDetailsRequestBody {
-  answers: string[];
+  answers: AnswerDetails[];
   respondentEmail: string;
 }
 

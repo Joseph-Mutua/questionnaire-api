@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-misused-promises */
 import { Router, Request, Response } from "express";
 import { generateToken } from "../helpers/forms/formControllerHelpers";
 
@@ -5,14 +6,16 @@ import { AuthRequest, authenticateUser } from "../middleware/auth";
 
 import { pool } from "../config/db";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import HttpError from "../utils/httpError";
 import { fetchFormDetails } from "../helpers/forms/formControllerHelpers";
 
 const router = Router();
 
 router.post("/register", async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  const { email, password } = req.body as {
+    email: string;
+    password: string;
+  };
   const hashedPassword = await bcrypt.hash(password, 10);
   const client = await pool.connect();
 
@@ -20,19 +23,28 @@ router.post("/register", async (req: Request, res: Response) => {
   const insertUserText =
     "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING user_id, email";
   const insertUserValues = [email, hashedPassword];
-  const result = await client.query(insertUserText, insertUserValues);
+  const result = await pool.query<{ user_id: number; email: string }>(
+    insertUserText,
+    insertUserValues
+  );
   await client.query("COMMIT");
   const user = result.rows[0];
-  const token = generateToken(user.id);
+  const token = generateToken(String(user.user_id));
   res.status(201).send({ user, token });
 });
 
 router.post("/login", async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  const { email, password } = req.body as {
+    email: string;
+    password: string;
+  };
 
   const findUserText = "SELECT user_id, password FROM users WHERE email = $1";
   const findUserValues = [email];
-  const result = await pool.query(findUserText, findUserValues);
+  const result = await pool.query<{ user_id: number; password: string }>(
+    findUserText,
+    findUserValues
+  );
 
   if (result.rows.length === 0) {
     throw new HttpError("User Not Found", 404);
@@ -45,7 +57,7 @@ router.post("/login", async (req: Request, res: Response) => {
     throw new HttpError("Invalid Credentials", 401);
   }
 
-  const token = generateToken(user.user_id);
+  const token = generateToken(String(user.user_id));
   res.send({ user: { userId: user.user_id, email }, token });
 });
 
@@ -59,7 +71,7 @@ router.get(
     }
 
     const basicFormsQuery = "SELECT form_id FROM forms WHERE owner_id = $1";
-    const basicFormsResult = await pool.query(basicFormsQuery, [user_id]);
+    const basicFormsResult = await pool.query<{ form_id: number }>(basicFormsQuery, [user_id]);
 
     if (basicFormsResult.rows.length === 0) {
       throw new HttpError("No forms found for this user.", 404);
