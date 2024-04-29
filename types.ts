@@ -1,6 +1,8 @@
 
 export type QuizSettings = {
   is_quiz: boolean;
+  update_window_hours: number | null;
+  wants_email_updates: boolean,
 };
 
 export interface Option {
@@ -66,8 +68,8 @@ export interface FeedbackIds {
 
 
 export interface AnswerDetails {
-  grade: any;
-  textAnswers: any;
+  grade: unknown;
+  textAnswers: unknown;
   score: number;
   feedback: string;
 }

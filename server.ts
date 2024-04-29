@@ -1,11 +1,10 @@
-import express, { Express, Request, Response } from "express";
+import express, { Express } from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import { connectDB } from "./config/db";
 import { runMigrations } from "./config/db/migration";
-
 
 //Routes
 import userRoutes from "./routes/userRoutes";
@@ -33,7 +32,6 @@ app.use(express.json());
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/forms", formRoutes);
 
-
 async function initializeApp() {
   try {
     await runMigrations();
@@ -44,11 +42,16 @@ async function initializeApp() {
     app.listen(port, () => {
       console.log(`[server]: Server is running at http://localhost:${port}`);
     });
-
   } catch (error) {
     console.error("Failed to initialize the application:", error);
-    process.exit(1); 
+    process.exit(1);
   }
 }
 
-initializeApp();
+initializeApp()
+  .then(() => {
+    console.log("Application initialized successfully.");
+  })
+  .catch((err) => {
+    console.error("Failed to initialize the application:", err);
+  });

@@ -58,9 +58,12 @@ CREATE TABLE IF NOT EXISTS images (
 -- Form Settings linking to Quiz Settings
 CREATE TABLE IF NOT EXISTS form_settings (
     settings_id SERIAL PRIMARY KEY,
-    quiz_settings_id INTEGER,
+    quiz_settings_id INTEGER,  -- Reference to specific quiz settings if applicable
+    update_window_hours INTEGER DEFAULT 24,  -- Time window for updating responses
+    wants_email_updates BOOLEAN DEFAULT FALSE,  -- Whether updates should trigger emails
     FOREIGN KEY (quiz_settings_id) REFERENCES quiz_settings(quiz_settings_id)
 );
+
 
 -- Core table for forms, linking to settings, owners, and meta-information
 CREATE TABLE IF NOT EXISTS forms (
@@ -69,9 +72,7 @@ CREATE TABLE IF NOT EXISTS forms (
     info_id INTEGER NOT NULL,
     revision_id VARCHAR NOT NULL,
     responder_uri VARCHAR NOT NULL,
-    settings_id INTEGER,
-    update_window_hours INTEGER DEFAULT 24,
-    wants_email_updates BOOLEAN DEFAULT FALSE,
+    settings_id INTEGER,  -- Link to form settings
     FOREIGN KEY (info_id) REFERENCES form_info(info_id),
     FOREIGN KEY (settings_id) REFERENCES form_settings(settings_id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -170,6 +171,7 @@ CREATE TABLE IF NOT EXISTS form_responses (
     total_score INTEGER DEFAULT 0,  -- Total score for quiz responses
     FOREIGN KEY (form_id) REFERENCES forms(form_id)
 );
+
 -- Stores answers to specific questions from form submissions.-- Answers table modified to include grading and feedback
 CREATE TABLE IF NOT EXISTS answers (
     answer_id SERIAL PRIMARY KEY,
