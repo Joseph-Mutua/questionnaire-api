@@ -1,5 +1,5 @@
 import express, { Express } from "express";
-import "express-async-errors";
+//import "express-async-errors";
 import dotenv from "dotenv";
 import cors from "cors";
 import helmet from "helmet";
@@ -11,7 +11,6 @@ import { runMigrations } from "./config/db/migration";
 import userRoutes from "./routes/userRoutes";
 import formRoutes from "./routes/formRoutes";
 import errorHandler from "./middleware/error";
-//import errorHandler from "./middleware/error";
 
 if (process.env.NODE_ENV !== "PRODUCTION") {
   dotenv.config({

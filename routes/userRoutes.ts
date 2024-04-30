@@ -9,36 +9,42 @@ import bcrypt from "bcryptjs";
 import HttpError from "../utils/httpError";
 import { fetchFormDetails } from "../helpers/forms/formControllerHelpers";
 
+import asyncErrorHandler from "../middleware/asyncErrorHandler";
+
 const router = Router();
 
-router.post("/register", async (req: Request, res: Response) => {
-  const { email, password } = req.body as {
-    email: string;
-    password: string;
-  };
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const client = await pool.connect();
+router.post(
+  "/register",
 
-  await client.query("BEGIN");
+  asyncErrorHandler(async (req: Request, res: Response) => {
+    const { email, password } = req.body as {
+      email: string;
+      password: string;
+    };
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const client = await pool.connect();
 
-  const insertUserText =
-    "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING user_id, email";
-  const insertUserValues = [email, hashedPassword];
-  const result = await pool.query<{ user_id: number; email: string }>(
-    insertUserText,
-    insertUserValues
-  );
+    await client.query("BEGIN");
 
-  await client.query("COMMIT");
-  const user = result.rows[0];
-  const token = generateToken(String(user.user_id));
-  res.status(201).send({ user, token });
-});
+    const insertUserText =
+      "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING user_id, email";
+    const insertUserValues = [email, hashedPassword];
+    const result = await pool.query<{ user_id: number; email: string }>(
+      insertUserText,
+      insertUserValues
+    );
+
+    await client.query("COMMIT");
+    const user = result.rows[0];
+    const token = generateToken(String(user.user_id));
+    res.status(201).send({ user, token });
+  })
+);
 
 router.post(
   "/login",
 
-  async (req: Request, res: Response) => {
+  asyncErrorHandler(async (req: Request, res: Response) => {
     const { email, password } = req.body as {
       email: string;
       password: string;
@@ -65,13 +71,14 @@ router.post(
 
     const token = generateToken(String(user.user_id));
     res.send({ user: { userId: user.user_id, email }, token });
-  }
+  })
 );
 
 router.get(
   "/:userId/forms",
   authenticateUser,
-  async (req: AuthRequest, res: Response) => {
+
+  asyncErrorHandler(async (req: AuthRequest, res: Response) => {
     const user_id = req.user?.user_id;
     if (!user_id) {
       throw new HttpError("User must be logged in.", 403);
@@ -93,7 +100,7 @@ router.get(
     const formsDetails = await Promise.all(formsDetailsPromises);
 
     res.json(formsDetails);
-  }
+  })
 );
 
 export default router;

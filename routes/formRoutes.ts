@@ -15,105 +15,116 @@ import {
   updateOrCreateSettings,
 } from "../helpers/forms/formControllerHelpers";
 import { FormDetailsRequestBody, QuizSettings, Section } from "../types";
+import asyncErrorHandler from "../middleware/asyncErrorHandler";
 
 const router = Router();
 
 // Routes for form management
-router.post("/", authenticateUser, async (req: AuthRequest, res: Response) => {
-  const user_id = req.user?.user_id;
-  const { title, description } = req.body as {
-    title: string;
-    description: string;
-  };
+router.post(
+  "/",
+  authenticateUser,
 
-  if (!user_id) {
-    throw new HttpError("User must be logged in.", 403);
-  }
+  asyncErrorHandler(async (req: AuthRequest, res: Response) => {
+    const user_id = req.user?.user_id;
+    const { title, description } = req.body as {
+      title: string;
+      description: string;
+    };
 
-  await pool.query("BEGIN");
-  const form_info_query =
-    "INSERT INTO form_info(title, description) VALUES($1, $2) RETURNING info_id";
-  const form_info_values = [title, description];
-  const form_info_result = await pool.query<{ info_id: number }>(
-    form_info_query,
-    form_info_values
-  );
-  const revisionId = "v1.0";
-  const token = jwt.sign(
-    {
-      formId: form_info_result.rows[0].info_id,
-      permissions: "fill",
+    if (!user_id) {
+      throw new HttpError("User must be logged in.", 403);
+    }
+
+    await pool.query("BEGIN");
+    const form_info_query =
+      "INSERT INTO form_info(title, description) VALUES($1, $2) RETURNING info_id";
+    const form_info_values = [title, description];
+    const form_info_result = await pool.query<{ info_id: number }>(
+      form_info_query,
+      form_info_values
+    );
+    const revisionId = "v1.0";
+    const token = jwt.sign(
+      {
+        formId: form_info_result.rows[0].info_id,
+        permissions: "fill",
+        revisionId,
+      },
+      process.env.JWT_SECRET!,
+      { expiresIn: "3d" }
+    );
+    const responderUri = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/respond?token=${token}`;
+    const forms_query =
+      "INSERT INTO forms(owner_id, info_id, revision_id, responder_uri) VALUES($1, $2, $3, $4) RETURNING form_id";
+    const forms_values = [
+      user_id,
+      form_info_result.rows[0].info_id,
       revisionId,
-    },
-    process.env.JWT_SECRET!,
-    { expiresIn: "3d" }
-  );
-  const responderUri = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/respond?token=${token}`;
-  const forms_query =
-    "INSERT INTO forms(owner_id, info_id, revision_id, responder_uri) VALUES($1, $2, $3, $4) RETURNING form_id";
-  const forms_values = [
-    user_id,
-    form_info_result.rows[0].info_id,
-    revisionId,
-    responderUri,
-  ];
-  const forms_result = await pool.query<{ form_id: number }>(
-    forms_query,
-    forms_values
-  );
-  const form_id = forms_result.rows[0].form_id;
-  const initSettingsQuery =
-    "INSERT INTO form_settings(quiz_settings_id, update_window_hours, wants_email_updates) VALUES(NULL, 24, FALSE) RETURNING settings_id";
-  const settingsResult = await pool.query<{ settings_id: number }>(
-    initSettingsQuery
-  );
-  const settings_id = settingsResult.rows[0].settings_id;
-  await pool.query("UPDATE forms SET settings_id = $1 WHERE form_id = $2", [
-    settings_id,
-    form_id,
-  ]);
-  await pool.query("COMMIT");
-  res.status(201).json({
-    message: "Form created successfully",
-    formId: form_id,
-    formDetails: await fetchFormDetails(pool, form_id),
-  });
-});
+      responderUri,
+    ];
+    const forms_result = await pool.query<{ form_id: number }>(
+      forms_query,
+      forms_values
+    );
+    const form_id = forms_result.rows[0].form_id;
+    const initSettingsQuery =
+      "INSERT INTO form_settings(quiz_settings_id, update_window_hours, wants_email_updates) VALUES(NULL, 24, FALSE) RETURNING settings_id";
+    const settingsResult = await pool.query<{ settings_id: number }>(
+      initSettingsQuery
+    );
+    const settings_id = settingsResult.rows[0].settings_id;
+    await pool.query("UPDATE forms SET settings_id = $1 WHERE form_id = $2", [
+      settings_id,
+      form_id,
+    ]);
+    await pool.query("COMMIT");
+    res.status(201).json({
+      message: "Form created successfully",
+      formId: form_id,
+      formDetails: await fetchFormDetails(pool, form_id),
+    });
+  })
+);
 
 //Public route for accessing form
-router.get("/respond", async (req: Request, res: Response) => {
-  if (!req.query.token) {
-    throw new HttpError("Token is required", 400);
-  }
+router.get(
+  "/respond",
 
-  const token = typeof req.query.token === "string" ? req.query.token : null;
+  asyncErrorHandler(async (req: Request, res: Response) => {
+    if (!req.query.token) {
+      throw new HttpError("Token is required", 400);
+    }
 
-  if (!token) {
-    throw new HttpError("Token must be a single string", 400);
-  }
+    const token = typeof req.query.token === "string" ? req.query.token : null;
 
-  const decoded = jwt.verify(token, process.env.JWT_SECRET!);
-  if (typeof decoded !== "object" || !decoded.formId || !decoded.revisionId) {
-    throw new HttpError("Invalid token", 400);
-  }
+    if (!token) {
+      throw new HttpError("Token must be a single string", 400);
+    }
 
-  const { formId, revisionId } = decoded as {
-    formId: number;
-    revisionId: string;
-  };
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+    if (typeof decoded !== "object" || !decoded.formId || !decoded.revisionId) {
+      throw new HttpError("Invalid token", 400);
+    }
 
-  const formDetails = await fetchFormDetails(pool, formId, revisionId);
-  if (!formDetails) {
-    throw new HttpError("Form not found or revision does not match.", 404);
-  }
+    const { formId, revisionId } = decoded as {
+      formId: number;
+      revisionId: string;
+    };
 
-  res.json(formDetails);
-});
+    const formDetails = await fetchFormDetails(pool, formId, revisionId);
+    if (!formDetails) {
+      throw new HttpError("Form not found or revision does not match.", 404);
+    }
+
+    res.json(formDetails);
+  })
+);
 
 router.get(
   "/:id",
   authenticateUser,
-  async (req: AuthRequest, res: Response) => {
+
+  asyncErrorHandler(async (req: AuthRequest, res: Response) => {
     const form_id = parseInt(req.params.id);
     if (!form_id) {
       throw new HttpError("Invalid form ID provided.", 400);
@@ -124,13 +135,13 @@ router.get(
       throw new HttpError("Form not found.", 404);
     }
     res.json(formDetails);
-  }
+  })
 );
 
 router.patch(
   "/:id",
   authenticateUser,
-  async (req: AuthRequest, res: Response) => {
+  asyncErrorHandler(async (req: AuthRequest, res: Response) => {
     const user_id = req.user?.user_id;
     const form_id = parseInt(req.params.id);
     const { sections, settings } = req.body as {
@@ -202,7 +213,7 @@ router.patch(
       message: "Form updated successfully",
       formDetails: formDetails,
     });
-  }
+  })
 );
 
 router.delete(
@@ -259,7 +270,8 @@ router.delete(
 router.get(
   "/:formId/responses",
   authenticateUser,
-  async (req: AuthRequest, res: Response) => {
+
+  asyncErrorHandler(async (req: AuthRequest, res: Response) => {
     const { formId } = req.params;
     const user_id = req.user?.user_id;
 
@@ -311,92 +323,97 @@ router.get(
     } else {
       throw new HttpError("No responses found for this form.", 404);
     }
-  }
+  })
 );
 
 //Submit form response
-router.post("/:formId/responses", async (req: Request, res: Response) => {
-  const { formId } = req.params;
-  const { answers, respondentEmail } = req.body as FormDetailsRequestBody;
+router.post(
+  "/:formId/responses",
 
-  await pool.query("BEGIN");
+  asyncErrorHandler(async (req: Request, res: Response) => {
+    const { formId } = req.params;
+    const { answers, respondentEmail } = req.body as FormDetailsRequestBody;
 
-  const insertResponseQuery = `
+    await pool.query("BEGIN");
+
+    const insertResponseQuery = `
       INSERT INTO form_responses (form_id, responder_email, create_time, last_submitted_time, total_score)
       VALUES ($1, $2, NOW(), NOW(), 0)
       RETURNING response_id;
     `;
-  const responseResult = await pool.query<{ response_id: number }>(
-    insertResponseQuery,
-    [formId, respondentEmail]
-  );
-  const responseId = responseResult.rows[0].response_id;
+    const responseResult = await pool.query<{ response_id: number }>(
+      insertResponseQuery,
+      [formId, respondentEmail]
+    );
+    const responseId = responseResult.rows[0].response_id;
 
-  let totalScore = 0;
+    let totalScore = 0;
 
-  for (const [questionId, answerDetails] of Object.entries(answers)) {
-    const score = answerDetails.grade ? answerDetails.grade.score : 0;
-    const feedback = answerDetails.grade
-      ? JSON.stringify(answerDetails.grade.feedback)
-      : null;
-    const answerValue = answerDetails.textAnswers
-      ? JSON.stringify(answerDetails.textAnswers.answers)
-      : "{}";
+    for (const [questionId, answerDetails] of Object.entries(answers)) {
+      const score = answerDetails.grade ? answerDetails.grade.score : 0;
+      const feedback = answerDetails.grade
+        ? JSON.stringify(answerDetails.grade.feedback)
+        : null;
+      const answerValue = answerDetails.textAnswers
+        ? JSON.stringify(answerDetails.textAnswers.answers)
+        : "{}";
 
-    const insertAnswerQuery = `
+      const insertAnswerQuery = `
         INSERT INTO answers (response_id, question_id, value, score, feedback)
         VALUES ($1, $2, $3, $4, $5);
       `;
-    await pool.query(insertAnswerQuery, [
-      responseId,
-      questionId,
-      answerValue,
-      score,
-      feedback,
-    ]);
-    totalScore += score;
-  }
-
-  await pool.query(
-    "UPDATE form_responses SET total_score = $1 WHERE response_id = $2",
-    [totalScore, responseId]
-  );
-  const responseToken = jwt.sign(
-    { responseId, formId },
-    process.env.JWT_SECRET!,
-    { expiresIn: "1d" }
-  );
-
-  if (respondentEmail) {
-    await sendSubmissionConfirmation(
-      respondentEmail,
-      responseId,
-      Number(formId),
-      responseToken
-    );
-    await sendNewResponseAlert(
-      Number(formId),
-      responseId,
-      respondentEmail,
-      responseToken
-    );
+      await pool.query(insertAnswerQuery, [
+        responseId,
+        questionId,
+        answerValue,
+        score,
+        feedback,
+      ]);
+      totalScore += score;
+    }
 
     await pool.query(
-      "UPDATE form_responses SET response_token = $1 WHERE response_id = $2",
-      [responseToken, responseId]
+      "UPDATE form_responses SET total_score = $1 WHERE response_id = $2",
+      [totalScore, responseId]
     );
-  }
-  await pool.query("COMMIT");
-  res.status(201).json({
-    message: "Response submitted successfully",
-    responseId: responseId,
-  });
-});
+    const responseToken = jwt.sign(
+      { responseId, formId },
+      process.env.JWT_SECRET!,
+      { expiresIn: "1d" }
+    );
+
+    if (respondentEmail) {
+      await sendSubmissionConfirmation(
+        respondentEmail,
+        responseId,
+        Number(formId),
+        responseToken
+      );
+      await sendNewResponseAlert(
+        Number(formId),
+        responseId,
+        respondentEmail,
+        responseToken
+      );
+
+      await pool.query(
+        "UPDATE form_responses SET response_token = $1 WHERE response_id = $2",
+        [responseToken, responseId]
+      );
+    }
+    await pool.query("COMMIT");
+    res.status(201).json({
+      message: "Response submitted successfully",
+      responseId: responseId,
+    });
+  })
+);
 
 //Get response by token
 router.get(
   "/:formId/responses/:responseId/token",
-  async (req: Request, res: Response) => {
+
+  asyncErrorHandler(async (req: Request, res: Response) => {
     const { responseToken } = req.query as { responseToken: string };
 
     if (!responseToken) {
@@ -418,14 +435,14 @@ router.get(
       throw new HttpError("Invalid or expired token", 401);
     }
     await getSpecificFormResponse(req, res);
-  }
+  })
 );
 
 //Get Specific Form Response
 router.get(
   "/:formId/responses/:responseId",
   authenticateUser,
-  async (req: Request, res: Response) => {
+  asyncErrorHandler(async (req: Request, res: Response) => {
     const { formId, responseId } = req.params;
 
     const query = `
@@ -447,7 +464,7 @@ router.get(
     } else {
       throw new HttpError("Response not found.", 404);
     }
-  }
+  })
 );
 
 export default router;

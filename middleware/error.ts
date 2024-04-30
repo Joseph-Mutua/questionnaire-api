@@ -1,4 +1,4 @@
-import { Request, Response, ErrorRequestHandler,  NextFunction} from "express";
+import { Request, Response, ErrorRequestHandler, NextFunction } from "express";
 import HttpError from "../utils/httpError";
 
 const errorHandler: ErrorRequestHandler = (
@@ -9,12 +9,10 @@ const errorHandler: ErrorRequestHandler = (
   next: NextFunction
 ) => {
   let statusCode = 500;
-  let message = "Something went wrong";
+  let message = "Internal Server Error";
   if (err instanceof HttpError) {
     statusCode = err.statusCode;
     message = err.message;
-
-    console.error("ERRRRRRRRR", err.message);
     return res.status(statusCode).json({ error: message });
   }
 
