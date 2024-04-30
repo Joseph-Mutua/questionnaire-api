@@ -272,10 +272,10 @@ export async function ensureFeedbackExists(pool: Pool, feedbackIds: number[]) {
 export async function sendSubmissionConfirmation(
   recipientEmail: string,
   responseId: number,
-  formId: number,
+  form_id: number,
   responseToken: string
 ) {
-  const responseLink = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/${formId}/responses/${responseId}?responseToken=${responseToken}`;
+  const responseLink = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/${form_id}/responses/${responseId}/token?response_token=${responseToken}`;
 
   const confirmationTemplate = loadEmailTemplate(
     "respondentSubmissionConfirmation"
@@ -290,7 +290,7 @@ export async function sendSubmissionConfirmation(
 }
 
 export async function sendNewResponseAlert(
-  formId: number,
+  form_id: number,
   responseId: number,
   responderEmail: string,
   responseToken: string
@@ -301,29 +301,29 @@ export async function sendNewResponseAlert(
     `SELECT wants_email_updates FROM form_settings WHERE settings_id = (
       SELECT settings_id FROM forms WHERE form_id = $1
     )`,
-    [formId]
+    [form_id]
   );
 
   if (
     settingsResult.rows.length > 0 &&
     !settingsResult.rows[0].wants_email_updates
   ) {
-    console.log(`Email updates are disabled for form ${formId}.`);
+    console.log(`Email updates are disabled for form ${form_id}.`);
     return;
   }
 
-  const ownerEmail = await getFormOwnerEmail(formId);
+  const ownerEmail = await getFormOwnerEmail(form_id);
   if (!ownerEmail) {
-    console.error(`Form owner email not found for form ${formId}`);
+    console.error(`Form owner email not found for form ${form_id}`);
     return;
   }
 
-  const responseLink = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/${formId}/responses/${responseId}?responseToken=${responseToken}`;
+ const responseLink = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/${form_id}/responses/${responseId}/token?response_token=${responseToken}`;
   const alertTemplate = loadEmailTemplate("ownerNewResponseNotification");
 
   const submissionDetails = await pool.query<{ title: string }>(
     "SELECT title FROM form_info WHERE info_id IN (SELECT info_id FROM forms WHERE form_id = $1)",
-    [formId]
+    [form_id]
   );
   const { title } = submissionDetails.rows[0];
 
@@ -336,22 +336,22 @@ export async function sendNewResponseAlert(
 }
 
 export async function getFormOwnerEmail(
-  formId: number
+  form_id: number
 ): Promise<string | null> {
   const result = await pool.query<{ email: string }>(
     "SELECT email FROM users WHERE user_id = (SELECT owner_id FROM forms WHERE form_id = $1)",
-    [formId]
+    [form_id]
   );
   return result.rows[0]?.email ?? null;
 }
 
 export async function fetchFormDetails(
   pool: Pool,
-  formId: number,
+  form_id: number,
   revisionId?: string
 ): Promise<FormDetails | null> {
   const revisionCondition = revisionId ? `AND f.revision_id = $2` : "";
-  const queryParams: (number | string)[] = [formId];
+  const queryParams: (number | string)[] = [form_id];
   if (revisionId) queryParams.push(revisionId);
 
   const query = `
@@ -406,7 +406,7 @@ export async function fetchFormDetails(
 }
 
 export const getSpecificFormResponse = async (req: Request, res: Response) => {
-  const { formId, responseId } = req.params;
+  const { form_id, responseId } = req.params;
 
   const query = `
             SELECT r.response_id, r.form_id, r.responder_email, r.create_time, r.last_submitted_time, r.total_score, 
@@ -421,7 +421,7 @@ export const getSpecificFormResponse = async (req: Request, res: Response) => {
             WHERE r.form_id = $1 AND r.response_id = $2
             GROUP BY r.response_id;
         `;
-  const { rows } = await pool.query(query, [formId, responseId]);
+  const { rows } = await pool.query(query, [form_id, responseId]);
   if (rows.length > 0) {
     res.json(rows[0]);
   } else {

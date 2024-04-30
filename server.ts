@@ -1,5 +1,4 @@
 import express, { Express } from "express";
-//import "express-async-errors";
 import dotenv from "dotenv";
 import cors from "cors";
 import helmet from "helmet";
@@ -21,15 +20,18 @@ if (process.env.NODE_ENV !== "PRODUCTION") {
 const app: Express = express();
 
 const port = process.env.PORT || 3000;
+
 app.use(
   cors({
     origin: ["http://localhost:3000"],
     credentials: true,
   })
 );
+
 app.use(helmet());
 app.use(morgan("tiny"));
 app.use(express.json());
+
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/forms", formRoutes);
 

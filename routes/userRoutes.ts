@@ -7,7 +7,7 @@ import { AuthRequest, authenticateUser } from "../middleware/auth";
 import { pool } from "../config/db";
 import bcrypt from "bcryptjs";
 import HttpError from "../utils/httpError";
-import { fetchFormDetails } from "../helpers/forms/formControllerHelpers";
+import {  fetchFormDetails } from "../helpers/forms/formControllerHelpers";
 
 import asyncErrorHandler from "../middleware/asyncErrorHandler";
 

@@ -6,6 +6,7 @@ import { getSpecificFormResponse } from "../helpers/forms/formControllerHelpers"
 import HttpError from "../utils/httpError";
 import { pool } from "../config/db";
 import jwt from "jsonwebtoken";
+
 import {
   fetchFormDetails,
   handleItem,
@@ -14,7 +15,14 @@ import {
   sendSubmissionConfirmation,
   updateOrCreateSettings,
 } from "../helpers/forms/formControllerHelpers";
-import { FormDetailsRequestBody, QuizSettings, Section } from "../types";
+
+import {
+  FormDetailsRequestBody,
+  FormResponseBody,
+  QuizSettings,
+  Section,
+} from "../types";
+
 import asyncErrorHandler from "../middleware/asyncErrorHandler";
 
 const router = Router();
@@ -23,7 +31,6 @@ const router = Router();
 router.post(
   "/",
   authenticateUser,
-
   asyncErrorHandler(async (req: AuthRequest, res: Response) => {
     const user_id = req.user?.user_id;
     const { title, description } = req.body as {
@@ -46,7 +53,7 @@ router.post(
     const revisionId = "v1.0";
     const token = jwt.sign(
       {
-        formId: form_info_result.rows[0].info_id,
+        form_id: form_info_result.rows[0].info_id,
         permissions: "fill",
         revisionId,
       },
@@ -80,8 +87,8 @@ router.post(
     await pool.query("COMMIT");
     res.status(201).json({
       message: "Form created successfully",
-      formId: form_id,
-      formDetails: await fetchFormDetails(pool, form_id),
+      form_id: form_id,
+      form_details: await fetchFormDetails(pool, form_id),
     });
   })
 );
@@ -102,21 +109,25 @@ router.get(
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET!);
-    if (typeof decoded !== "object" || !decoded.formId || !decoded.revisionId) {
+    if (
+      typeof decoded !== "object" ||
+      !decoded.form_id ||
+      !decoded.revisionId
+    ) {
       throw new HttpError("Invalid token", 400);
     }
 
-    const { formId, revisionId } = decoded as {
-      formId: number;
+    const { form_id, revisionId } = decoded as {
+      form_id: number;
       revisionId: string;
     };
 
-    const formDetails = await fetchFormDetails(pool, formId, revisionId);
-    if (!formDetails) {
+    const form_details = await fetchFormDetails(pool, form_id, revisionId);
+    if (!form_details) {
       throw new HttpError("Form not found or revision does not match.", 404);
     }
 
-    res.json(formDetails);
+    res.json(form_details);
   })
 );
 
@@ -130,11 +141,11 @@ router.get(
       throw new HttpError("Invalid form ID provided.", 400);
     }
 
-    const formDetails = await fetchFormDetails(pool, form_id);
-    if (!formDetails) {
+    const form_details = await fetchFormDetails(pool, form_id);
+    if (!form_details) {
       throw new HttpError("Form not found.", 404);
     }
-    res.json(formDetails);
+    res.json(form_details);
   })
 );
 
@@ -182,7 +193,7 @@ router.patch(
     const newRevisionId = `v${majorVersion}.0`;
 
     const newToken = jwt.sign(
-      { formId: form_id, revisionId: newRevisionId, permissions: "fill" },
+      { form_id: form_id, revisionId: newRevisionId, permissions: "fill" },
       process.env.JWT_SECRET!,
       { expiresIn: "3d" }
     );
@@ -193,25 +204,18 @@ router.patch(
       [newRevisionId, newResponderUri, form_id]
     );
 
-    if (settings && settings.update_window_hours !== undefined) {
-      await pool.query(
-        "UPDATE forms SET update_window_hours = $1 WHERE form_id = $2",
-        [settings.update_window_hours, form_id]
-      );
-    }
-
     for (const section of sections) {
       const section_id = await handleSection(pool, form_id, section);
       for (const item of section.items) {
         await handleItem(pool, form_id, section_id, item);
       }
     }
-    const formDetails = await fetchFormDetails(pool, form_id);
+    const form_details = await fetchFormDetails(pool, form_id);
 
     await pool.query("COMMIT");
     res.status(200).json({
       message: "Form updated successfully",
-      formDetails: formDetails,
+      form_details: form_details,
     });
   })
 );
@@ -267,12 +271,41 @@ router.delete(
   }
 );
 
+//Get response by token
 router.get(
-  "/:formId/responses",
-  authenticateUser,
+  "/:form_id/responses/:responseId/token",
 
+  asyncErrorHandler(async (req: Request, res: Response) => {
+    const { response_token } = req.query as { response_token: string };
+
+    if (!response_token) {
+      throw new HttpError("Unauthorized", 401);
+    }
+    const decoded = jwt.verify(
+      response_token.toString(),
+      process.env.JWT_SECRET!
+    ) as {
+      response_id: number;
+      form_id: number;
+    };
+
+    const validationResult = await pool.query(
+      "SELECT response_id FROM form_responses WHERE response_id = $1 AND form_id = $2 AND response_token = $3",
+      [decoded.response_id, decoded.form_id, response_token]
+    );
+    if (validationResult.rows.length === 0) {
+      throw new HttpError("Invalid or expired token", 401);
+    }
+    await getSpecificFormResponse(req, res);
+  })
+);
+
+router.get(
+  "/:form_id/responses",
+
+  authenticateUser,
   asyncErrorHandler(async (req: AuthRequest, res: Response) => {
-    const { formId } = req.params;
+    const { form_id } = req.params;
     const user_id = req.user?.user_id;
 
     if (!user_id) {
@@ -284,7 +317,7 @@ router.get(
 
     const ownerCheck = await pool.query<{ owner_id: number }>(
       "SELECT owner_id FROM forms WHERE form_id = $1",
-      [formId]
+      [form_id]
     );
 
     if (ownerCheck.rows.length === 0) {
@@ -312,7 +345,7 @@ router.get(
             GROUP BY r.response_id
             ORDER BY r.create_time DESC;
         `;
-    const { rows } = await pool.query<FormDetailsRequestBody>(query, [formId]);
+    const { rows } = await pool.query<FormDetailsRequestBody>(query, [form_id]);
     if (rows.length > 0) {
       res.json(
         rows.map((row) => ({
@@ -328,11 +361,11 @@ router.get(
 
 //Submit form response
 router.post(
-  "/:formId/responses",
+  "/:form_id/responses",
 
   asyncErrorHandler(async (req: Request, res: Response) => {
-    const { formId } = req.params;
-    const { answers, respondentEmail } = req.body as FormDetailsRequestBody;
+    const { form_id } = req.params;
+    const { answers, respondent_email } = req.body as FormResponseBody;
 
     await pool.query("BEGIN");
 
@@ -343,107 +376,80 @@ router.post(
     `;
     const responseResult = await pool.query<{ response_id: number }>(
       insertResponseQuery,
-      [formId, respondentEmail]
+      [form_id, respondent_email]
     );
-    const responseId = responseResult.rows[0].response_id;
+    const response_id = responseResult.rows[0].response_id;
 
-    let totalScore = 0;
+    let total_score = 0;
 
-    for (const [questionId, answerDetails] of Object.entries(answers)) {
-      const score = answerDetails.grade ? answerDetails.grade.score : 0;
-      const feedback = answerDetails.grade
-        ? JSON.stringify(answerDetails.grade.feedback)
+    for (const [question_id, answer_details] of Object.entries(answers)) {
+      const score = answer_details.grade ? answer_details.grade.score : 0;
+      const feedback = answer_details.grade
+        ? JSON.stringify(answer_details.grade.feedback)
         : null;
-      const answerValue = answerDetails.textAnswers
-        ? JSON.stringify(answerDetails.textAnswers.answers)
+      const answer_value = answer_details.text_answers
+        ? JSON.stringify(answer_details.text_answers.answers)
         : "{}";
 
       const insertAnswerQuery = `
         INSERT INTO answers (response_id, question_id, value, score, feedback)
         VALUES ($1, $2, $3, $4, $5);
       `;
+
       await pool.query(insertAnswerQuery, [
-        responseId,
-        questionId,
-        answerValue,
+        response_id,
+        question_id,
+        answer_value,
         score,
         feedback,
       ]);
-      totalScore += score;
+      total_score += score;
     }
 
     await pool.query(
       "UPDATE form_responses SET total_score = $1 WHERE response_id = $2",
-      [totalScore, responseId]
+      [total_score, response_id]
     );
-    const responseToken = jwt.sign(
-      { responseId, formId },
+    const response_token = jwt.sign(
+      { response_id, form_id },
       process.env.JWT_SECRET!,
       { expiresIn: "1d" }
     );
 
-    if (respondentEmail) {
+    if (respondent_email) {
       await sendSubmissionConfirmation(
-        respondentEmail,
-        responseId,
-        Number(formId),
-        responseToken
+        respondent_email,
+        response_id,
+        Number(form_id),
+        response_token
       );
       await sendNewResponseAlert(
-        Number(formId),
-        responseId,
-        respondentEmail,
-        responseToken
+        Number(form_id),
+        response_id,
+        respondent_email,
+        response_token
       );
 
       await pool.query(
         "UPDATE form_responses SET response_token = $1 WHERE response_id = $2",
-        [responseToken, responseId]
+        [response_token, response_id]
       );
     }
     await pool.query("COMMIT");
+
     res.status(201).json({
       message: "Response submitted successfully",
-      responseId: responseId,
+      response_id: response_id,
     });
-  })
-);
-
-//Get response by token
-router.get(
-  "/:formId/responses/:responseId/token",
-
-  asyncErrorHandler(async (req: Request, res: Response) => {
-    const { responseToken } = req.query as { responseToken: string };
-
-    if (!responseToken) {
-      throw new HttpError("Unauthorized", 401);
-    }
-    const decoded = jwt.verify(
-      responseToken.toString(),
-      process.env.JWT_SECRET!
-    ) as {
-      responseId: number;
-      formId: number;
-    };
-
-    const validationResult = await pool.query(
-      "SELECT response_id FROM form_responses WHERE response_id = $1 AND form_id = $2 AND response_token = $3",
-      [decoded.responseId, decoded.formId, responseToken]
-    );
-    if (validationResult.rows.length === 0) {
-      throw new HttpError("Invalid or expired token", 401);
-    }
-    await getSpecificFormResponse(req, res);
   })
 );
 
 //Get Specific Form Response
 router.get(
-  "/:formId/responses/:responseId",
+  "/:form_id/responses/:responseId",
   authenticateUser,
   asyncErrorHandler(async (req: Request, res: Response) => {
-    const { formId, responseId } = req.params;
+    const { form_id, responseId } = req.params;
 
     const query = `
             SELECT r.response_id, r.form_id, r.responder_email, r.create_time, r.last_submitted_time, r.total_score, 
@@ -458,7 +464,7 @@ router.get(
             WHERE r.form_id = $1 AND r.response_id = $2
             GROUP BY r.response_id;
         `;
-    const { rows } = await pool.query(query, [formId, responseId]);
+    const { rows } = await pool.query(query, [form_id, responseId]);
     if (rows.length > 0) {
       res.json(rows[0]);
     } else {
