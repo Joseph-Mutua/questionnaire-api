@@ -10,7 +10,7 @@
 
 ### **Forms**
 
-- `formId` (PK)
+- `form_id` (PK)
 - `ownerId` (FK to Users)
 - `infoId` (FK to FormInfo)
 - `revisionId`
@@ -28,7 +28,7 @@
 ### **Sections**
 
 - `sectionId` (PK)
-- `formId` (FK to Forms)
+- `form_id` (FK to Forms)
 - `title`
 - `description`
 - `seq_order`
@@ -53,7 +53,7 @@
 ### **Items**
 
 - `itemId` (PK)
-- `formId` (FK to Forms)
+- `form_id` (FK to Forms)
 - `title`
 - `description`
 - `kind` (Check: 'questionItem', 'questionGroupItem', 'pageBreakItem', 'textItem', 'imageItem', 'videoItem')
@@ -124,7 +124,7 @@
 ### **FormResponses**
 
 - `responseId` (PK)
-- `formId` (FK to Forms)
+- `form_id` (FK to Forms)
 - `createdAt`
 
 ### **Answers**

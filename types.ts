@@ -1,10 +1,8 @@
-
 export type QuizSettings = {
   is_quiz: boolean;
   update_window_hours: number | null;
-  wants_email_updates: boolean,
+  wants_email_updates: boolean;
 };
-
 
 export interface QuestionOptions {
   type: "RADIO" | "CHECKBOX" | "DROP_DOWN" | "CHOICE_TYPE_UNSPECIFIED";
@@ -35,14 +33,13 @@ export interface Grading {
   auto_feedback: boolean;
 }
 
-
 export interface Item {
-  item_id: number; 
+  item_id: number;
   title: string;
   description: string;
-  kind: string; 
-  question?: Question;  
-  questions?: Question[];  
+  kind: string;
+  question?: Question;
+  questions?: Question[];
 }
 
 export interface Section {
@@ -61,32 +58,25 @@ export interface FeedbackIds {
 
 export interface Grade {
   score: number;
-  feedback: string;  
+  feedback: string;
 }
-
 
 export interface AnswerDetails {
   grade?: Grade;
-  textAnswers?: {
-    answers: string[]; 
+  text_answers?: {
+    // answers: string[];
+    answers: { value: string }[];
   };
 }
-// export interface AnswerDetails {
-//   grade: Grade;
-//   textAnswers: string[];
-//   score: number;
-//   feedback: string;
-// }
 
-export interface FormDetailsRequestBody {
+export interface FormDetailsRequestBody{
   answers: AnswerDetails[];
-  respondentEmail: string;
+  respondent_email: string;
 }
-
 
 export interface FormResponseBody {
   answers: { [questionId: string]: AnswerDetails };
-  respondentEmail: string;
+  respondent_email: string;
 }
 
 interface Option {
@@ -101,7 +91,6 @@ interface Option {
     | "GO_TO_ACTION_UNSPECIFIED"
     | null;
 }
-
 
 export interface FormDetails {
   form_id: number;
