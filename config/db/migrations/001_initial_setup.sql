@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS sections (
     title VARCHAR NOT NULL,
     description TEXT,
     seq_order INTEGER,
-    UNIQUE(form_id, seq_order),  -- Assuming 'seq_order' should be unique per form
+    UNIQUE(form_id, seq_order),  -- 'seq_order' is unique per form
     FOREIGN KEY (form_id) REFERENCES forms(form_id)
 );
 
@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS items (
     title VARCHAR,
     description TEXT,
     kind VARCHAR NOT NULL CHECK (kind IN ('question_item', 'question_group_item', 'page_break_item', 'text_item', 'image_item')),
-    UNIQUE(form_id, title),  -- Assuming 'title' should be unique per form
+    UNIQUE(form_id, title),  -- 'title' is unique per form
     FOREIGN KEY (section_id) REFERENCES sections(section_id),
     FOREIGN KEY (form_id) REFERENCES forms(form_id)
 );
@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS form_responses (
     FOREIGN KEY (form_id) REFERENCES forms(form_id)
 );
 
--- Stores answers to specific questions from form submissions.-- Answers table modified to include grading and feedback
+-- Stores answers to specific questions from form submissions
 CREATE TABLE IF NOT EXISTS answers (
     answer_id SERIAL PRIMARY KEY,
     response_id INTEGER NOT NULL,
@@ -184,7 +184,7 @@ CREATE TABLE IF NOT EXISTS answers (
     FOREIGN KEY (question_id) REFERENCES questions(question_id)
 );
 
--- conditional logic to determine the flow of sections based on answers
+-- Conditional logic to determine the flow of sections based on answers
 CREATE TABLE IF NOT EXISTS navigation_rules (
     rule_id SERIAL PRIMARY KEY,
     section_id SERIAL NOT NULL,

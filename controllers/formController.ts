@@ -174,16 +174,6 @@ router.patch(
       revision_id: string;
     }>("SELECT owner_id, revision_id FROM forms WHERE form_id = $1", [form_id]);
 
-    if (ownerCheckResult.rows.length === 0) {
-      await pool.query("ROLLBACK");
-      throw new HttpError("Form not found.", 404);
-    }
-
-    if (ownerCheckResult.rows[0].owner_id !== user_id) {
-      await pool.query("ROLLBACK");
-      throw new HttpError("User is not authorized to update this form.", 403);
-    }
-
     await updateOrCreateSettings(pool, settings, form_id);
 
     const currentRevision = ownerCheckResult.rows[0].revision_id;
@@ -200,8 +190,8 @@ router.patch(
     const newResponderUri = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/respond?token=${newToken}`;
 
     await pool.query<{ form_id: number }>(
-      "UPDATE forms SET revision_id = $1, responder_uri = $2 WHERE form_id = $3",
-      [newRevisionId, newResponderUri, form_id]
+      "UPDATE forms SET revision_id = $1, responder_uri = $2 WHERE form_id = $3 AND owner_id = $4",
+      [newRevisionId, newResponderUri, form_id, user_id]
     );
 
     for (const section of sections) {
@@ -223,7 +213,7 @@ router.patch(
 router.delete(
   "/:id",
   authenticateUser,
-  async (req: AuthRequest, res: Response) => {
+  asyncErrorHandler(async (req: AuthRequest, res: Response) => {
     const user_id = req.user?.user_id;
     const form_id = parseInt(req.params.id);
 
@@ -234,23 +224,10 @@ router.delete(
       throw new HttpError("Invalid form ID provided.", 400);
     }
 
-    const ownerCheck = await pool.query<{ owner_id: number }>(
-      "SELECT owner_id FROM forms WHERE form_id = $1",
-      [form_id]
-    );
-
-    if (ownerCheck.rows.length === 0) {
-      throw new HttpError("Form not found.", 404);
-    }
-
-    if (ownerCheck.rows[0].owner_id !== user_id) {
-      throw new HttpError("User is not authorized to delete this form.", 403);
-    }
-
     await pool.query("BEGIN");
 
     await pool.query(
-      "DELETE FROM question_items WHERE item_id IN (SELECT item_id FROM items WHERE form_id = $1)",
+      "DELETE FROM question_items WHERE item_id IN (SELECT item_id FROM items WHERE form_id = $1 )",
       [form_id]
     );
     await pool.query(
@@ -263,12 +240,12 @@ router.delete(
     );
     await pool.query("DELETE FROM items WHERE form_id = $1", [form_id]);
     await pool.query("DELETE FROM sections WHERE form_id = $1", [form_id]);
-    await pool.query("DELETE FROM forms WHERE form_id = $1", [form_id]);
+    await pool.query("DELETE FROM forms WHERE form_id = $1 AND owner_id = $2", [form_id, user_id]);
 
     await pool.query("COMMIT");
 
     res.json({ message: "Form deleted successfully." });
-  }
+  })
 );
 
 //Get response by token
@@ -302,7 +279,6 @@ router.get(
 
 router.get(
   "/:form_id/responses",
-
   authenticateUser,
   asyncErrorHandler(async (req: AuthRequest, res: Response) => {
     const { form_id } = req.params;
@@ -311,22 +287,6 @@ router.get(
     if (!user_id) {
       throw new HttpError(
         "User must be logged in to access form responses.",
-        403
-      );
-    }
-
-    const ownerCheck = await pool.query<{ owner_id: number }>(
-      "SELECT owner_id FROM forms WHERE form_id = $1",
-      [form_id]
-    );
-
-    if (ownerCheck.rows.length === 0) {
-      throw new HttpError("Form not found.", 404);
-    }
-
-    if (ownerCheck.rows[0].owner_id !== user_id) {
-      throw new HttpError(
-        "User is not authorized to view these responses.",
         403
       );
     }
@@ -345,6 +305,7 @@ router.get(
             GROUP BY r.response_id
             ORDER BY r.create_time DESC;
         `;
+
     const { rows } = await pool.query<FormDetailsRequestBody>(query, [form_id]);
     if (rows.length > 0) {
       res.json(
@@ -423,6 +384,7 @@ router.post(
         Number(form_id),
         response_token
       );
+
       await sendNewResponseAlert(
         Number(form_id),
         response_id,

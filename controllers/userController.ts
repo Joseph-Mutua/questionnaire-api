@@ -15,7 +15,6 @@ const router = Router();
 
 router.post(
   "/register",
-
   asyncErrorHandler(async (req: Request, res: Response) => {
     const { email, password } = req.body as {
       email: string;

@@ -7,8 +7,8 @@ import { connectDB } from "./config/db";
 import { runMigrations } from "./config/db/migration";
 
 //Routes
-import userRoutes from "./routes/userRoutes";
-import formRoutes from "./routes/formRoutes";
+import userRoutes from "./controllers/userController";
+import formRoutes from "./controllers/formController";
 import errorHandler from "./middleware/error";
 
 if (process.env.NODE_ENV !== "PRODUCTION") {
@@ -38,6 +38,7 @@ app.use("/api/v1/forms", formRoutes);
 app.use(errorHandler);
 
 async function initializeApp() {
+
   try {
     await runMigrations();
     console.log("Database migrations completed successfully.");
@@ -51,6 +52,7 @@ async function initializeApp() {
     console.error("Failed to initialize the application:", error);
     process.exit(1);
   }
+  
 }
 
 initializeApp()
