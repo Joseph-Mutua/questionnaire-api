@@ -1,4 +1,5 @@
-import express, { Express, Request, Response } from "express";
+import express, { Express } from "express";
+//import "express-async-errors";
 import dotenv from "dotenv";
 import cors from "cors";
 import helmet from "helmet";
@@ -6,10 +7,10 @@ import morgan from "morgan";
 import { connectDB } from "./config/db";
 import { runMigrations } from "./config/db/migration";
 
-
 //Routes
 import userRoutes from "./routes/userRoutes";
 import formRoutes from "./routes/formRoutes";
+import errorHandler from "./middleware/error";
 
 if (process.env.NODE_ENV !== "PRODUCTION") {
   dotenv.config({
@@ -29,18 +30,31 @@ app.use(
 app.use(helmet());
 app.use(morgan("tiny"));
 app.use(express.json());
-
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/forms", formRoutes);
 
+app.use(errorHandler);
 
-runMigrations();
-connectDB()
-  .then(() => {
+async function initializeApp() {
+  try {
+    await runMigrations();
+    console.log("Database migrations completed successfully.");
+    await connectDB();
+    console.log("Database connection established successfully.");
+
     app.listen(port, () => {
       console.log(`[server]: Server is running at http://localhost:${port}`);
     });
+  } catch (error) {
+    console.error("Failed to initialize the application:", error);
+    process.exit(1);
+  }
+}
+
+initializeApp()
+  .then(() => {
+    console.log("Application initialized successfully.");
   })
-  .catch((error) => {
-    console.error("Failed to connect to the database!", error);
+  .catch((err) => {
+    console.error("Failed to initialize the application:", err);
   });

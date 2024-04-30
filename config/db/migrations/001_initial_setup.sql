@@ -27,11 +27,11 @@ CREATE TABLE IF NOT EXISTS feedbacks (
 -- Handles scoring and feedback mechanisms for quiz questions
 CREATE TABLE IF NOT EXISTS gradings (
     grading_id SERIAL PRIMARY KEY,
-    point_value INTEGER NOT NULL,
-    when_right INTEGER,
+    point_value INTEGER NOT NULL, --Points For a Correct Answer
+    when_right INTEGER, --Links to the feedbacks table to fetch the feedback provided when the answer is correct.
     when_wrong INTEGER,
-    general_feedback INTEGER,
-    answer_key TEXT,  -- store possible correct answers as JSON
+    general_feedback INTEGER, --Links to the feedbacks table to provide general feedback applicable to the question regardless of the respondent's answer being right or wrong
+    answer_key TEXT,  -- Store possible correct answers as JSON
     auto_feedback BOOLEAN DEFAULT FALSE,  -- automate feedback provision
     FOREIGN KEY (when_right) REFERENCES feedbacks(feedback_id),
     FOREIGN KEY (when_wrong) REFERENCES feedbacks(feedback_id),
@@ -58,9 +58,12 @@ CREATE TABLE IF NOT EXISTS images (
 -- Form Settings linking to Quiz Settings
 CREATE TABLE IF NOT EXISTS form_settings (
     settings_id SERIAL PRIMARY KEY,
-    quiz_settings_id INTEGER,
+    quiz_settings_id INTEGER,  -- Reference to specific quiz settings if applicable
+    update_window_hours INTEGER DEFAULT 24,  -- Time window for updating responses
+    wants_email_updates BOOLEAN DEFAULT FALSE,  -- Whether updates should trigger emails
     FOREIGN KEY (quiz_settings_id) REFERENCES quiz_settings(quiz_settings_id)
 );
+
 
 -- Core table for forms, linking to settings, owners, and meta-information
 CREATE TABLE IF NOT EXISTS forms (
@@ -69,7 +72,7 @@ CREATE TABLE IF NOT EXISTS forms (
     info_id INTEGER NOT NULL,
     revision_id VARCHAR NOT NULL,
     responder_uri VARCHAR NOT NULL,
-    settings_id INTEGER,
+    settings_id INTEGER,  -- Link to form settings
     FOREIGN KEY (info_id) REFERENCES form_info(info_id),
     FOREIGN KEY (settings_id) REFERENCES form_settings(settings_id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -107,9 +110,6 @@ CREATE TABLE IF NOT EXISTS items (
 -- --textItem: Displays a title and description on the page.
 -- --imageItem: Displays an image on the page.
 
-
- --TODO: ADD QuestionGroupItems // For a question with multiple Questions Grouped Together
-
 --TODO: ADD Image Items
 
 -- Questions of various types that can be part of the form
@@ -122,13 +122,13 @@ CREATE TABLE IF NOT EXISTS questions (
 );
 
 
---textQuestion: respondent can enter a free text response.
+--textQuestion: respondent can enter a free text response. e.g "Please describe your experience with our service."
 --scaleQuestion: respondent can choose a number from a range.
 --dateQuestion: respondent can choose a date.
 --timeQuestion: respondent can choose a time.
 --fileUploadQuestion: respondent can upload a file.
---rowQuestion: respondent can enter multiple free text responses.
-
+--rowQuestion: respondent can enter multiple free text responses. i.e in row/tabular format e.g A budget allocation
+--              form where each row specifies a different budget item, and the respondent needs to input amounts or percentages.
 
 -- Links form items to their respective questions, enabling dynamic form structures.
 CREATE TABLE IF NOT EXISTS question_items (
@@ -165,11 +165,13 @@ CREATE TABLE IF NOT EXISTS form_responses (
     response_id SERIAL PRIMARY KEY,
     form_id INTEGER NOT NULL,
     responder_email VARCHAR(255),  -- To store respondent's email if collected
+    response_token VARCHAR UNIQUE,
     create_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_submitted_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     total_score INTEGER DEFAULT 0,  -- Total score for quiz responses
     FOREIGN KEY (form_id) REFERENCES forms(form_id)
 );
+
 -- Stores answers to specific questions from form submissions.-- Answers table modified to include grading and feedback
 CREATE TABLE IF NOT EXISTS answers (
     answer_id SERIAL PRIMARY KEY,
@@ -182,7 +184,7 @@ CREATE TABLE IF NOT EXISTS answers (
     FOREIGN KEY (question_id) REFERENCES questions(question_id)
 );
 
--- Navigation rules: conditional logic to determine the flow of sections based on answers
+-- conditional logic to determine the flow of sections based on answers
 CREATE TABLE IF NOT EXISTS navigation_rules (
     rule_id SERIAL PRIMARY KEY,
     section_id SERIAL NOT NULL,

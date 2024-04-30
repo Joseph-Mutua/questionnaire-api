@@ -1,21 +1,23 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response, ErrorRequestHandler, NextFunction } from "express";
+import HttpError from "../utils/httpError";
 
-interface CustomError extends Error {
-  statusCode?: number;
-}
-
-module.exports = (
-  err: CustomError,
+const errorHandler: ErrorRequestHandler = (
+  err: Error,
   req: Request,
   res: Response,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   next: NextFunction
 ) => {
-  err.statusCode = err.statusCode || 500;
+  let statusCode = 500;
+  let message = "Internal Server Error";
+  if (err instanceof HttpError) {
+    statusCode = err.statusCode;
+    message = err.message;
+    return res.status(statusCode).json({ error: message });
+  }
 
-  err.message = err.message || "Internal Server Error";
-
-  res.status(err.statusCode).json({
-    success: false,
-    message: err.message,
-  });
+  console.error("ERRRRRRRRR", err);
+  return res.status(statusCode).json({ error: message });
 };
+
+export default errorHandler;

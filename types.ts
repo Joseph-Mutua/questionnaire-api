@@ -1,15 +1,10 @@
 
 export type QuizSettings = {
   is_quiz: boolean;
+  update_window_hours: number | null;
+  wants_email_updates: boolean,
 };
 
-export interface Option {
-  value: string;
-  image_id?: number;
-  is_other?: boolean;
-  goto_action?: string;
-  goto_section_id?: number;
-}
 
 export interface QuestionOptions {
   type: "RADIO" | "CHECKBOX" | "DROP_DOWN" | "CHOICE_TYPE_UNSPECIFIED";
@@ -40,14 +35,14 @@ export interface Grading {
   auto_feedback: boolean;
 }
 
-// Adjust the Item interface to include 'questions' for question groups
+
 export interface Item {
-  item_id?: number;  // Optional, depends on if it's being returned from the DB
+  item_id: number; 
   title: string;
   description: string;
-  kind: string;  // 'question_item', 'question_group_item', etc.
-  question?: Question;  // Used for single-question items
-  questions?: Question[];  // Used for question groups, thus it's an array
+  kind: string; 
+  question?: Question;  
+  questions?: Question[];  
 }
 
 export interface Section {
@@ -64,10 +59,60 @@ export interface FeedbackIds {
   general_feedback: number | null;
 }
 
+export interface Grade {
+  score: number;
+  feedback: string;  
+}
+
 
 export interface AnswerDetails {
-  grade: any;
-  textAnswers: any;
-  score: number;
-  feedback: string;
+  grade?: Grade;
+  textAnswers?: {
+    answers: string[]; 
+  };
+}
+// export interface AnswerDetails {
+//   grade: Grade;
+//   textAnswers: string[];
+//   score: number;
+//   feedback: string;
+// }
+
+export interface FormDetailsRequestBody {
+  answers: AnswerDetails[];
+  respondentEmail: string;
+}
+
+
+export interface FormResponseBody {
+  answers: { [questionId: string]: AnswerDetails };
+  respondentEmail: string;
+}
+
+interface Option {
+  option_id: number;
+  value: string;
+  image_id: number | null;
+  is_other: boolean;
+  goto_action:
+    | "NEXT_SECTION"
+    | "RESTART_FORM"
+    | "SUBMIT_FORM"
+    | "GO_TO_ACTION_UNSPECIFIED"
+    | null;
+}
+
+
+export interface FormDetails {
+  form_id: number;
+  revision_id: string;
+  responder_uri: string;
+  title: string;
+  description: string | null;
+  settings_id: number;
+  is_quiz: boolean | null;
+  quiz_settings_id: number | null;
+  update_window_hours: number;
+  wants_email_updates: boolean;
+  sections: Section[];
 }
