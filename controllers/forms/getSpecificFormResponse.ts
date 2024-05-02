@@ -4,7 +4,6 @@ import { Router, Response, Request } from "express";
 import { authenticateUser } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
-import asyncErrorHandler from "../../middleware/asyncErrorHandler";
 
 const router = Router();
 
@@ -12,7 +11,9 @@ const router = Router();
 router.get(
   "/:form_id/responses/:responseId",
   authenticateUser,
-  asyncErrorHandler(async (req: Request, res: Response) => {
+
+    
+    async (req: Request, res: Response) => {
     const { form_id, responseId } = req.params;
 
     const query = `
@@ -34,7 +35,9 @@ router.get(
     } else {
       throw new HttpError("Response not found.", 404);
     }
-  })
+  }
+
+
 );
 
 

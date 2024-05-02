@@ -5,15 +5,13 @@ import { pool } from "../../config/db";
 import bcrypt from "bcryptjs";
 import HttpError from "../../utils/httpError";
 
-import asyncErrorHandler from "../../middleware/asyncErrorHandler";
-
 const router = Router();
 
 
 router.post(
   "/login",
 
-  asyncErrorHandler(async (req: Request, res: Response) => {
+    async (req: Request, res: Response) => {
     const { email, password } = req.body as {
       email: string;
       password: string;
@@ -40,7 +38,7 @@ router.post(
 
     const token = generateToken(String(user.user_id));
     res.send({ user: { userId: user.user_id, email }, token });
-  })
+  }
 );
 
 

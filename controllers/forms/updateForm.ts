@@ -13,12 +13,7 @@ import {
   updateOrCreateSettings,
 } from "../../helpers/forms/formControllerHelpers";
 
-import {
-  QuizSettings,
-  Section,
-} from "../../types";
-
-import asyncErrorHandler from "../../middleware/asyncErrorHandler";
+import { QuizSettings, Section } from "../../types";
 
 const router = Router();
 
@@ -26,7 +21,8 @@ const router = Router();
 router.patch(
   "/:id",
   authenticateUser,
-  asyncErrorHandler(async (req: AuthRequest, res: Response) => {
+
+  async (req: AuthRequest, res: Response) => {
     const user_id = req.user?.user_id;
     const form_id = parseInt(req.params.id);
     const { sections, settings } = req.body as {
@@ -81,7 +77,7 @@ router.patch(
       message: "Form updated successfully",
       form_details: form_details,
     });
-  })
+  }
 );
 
 export default router;

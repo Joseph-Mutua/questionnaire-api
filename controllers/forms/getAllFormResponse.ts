@@ -5,13 +5,8 @@ import { AuthRequest, authenticateUser } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
 
+import { FormDetailsRequestBody } from "../../types";
 
-import {
-  FormDetailsRequestBody,
-
-} from "../../types";
-
-import asyncErrorHandler from "../../middleware/asyncErrorHandler";
 
 const router = Router();
 
@@ -19,7 +14,7 @@ const router = Router();
 router.get(
   "/:form_id/responses",
   authenticateUser,
-  asyncErrorHandler(async (req: AuthRequest, res: Response) => {
+  async (req: AuthRequest, res: Response) => {
     const { form_id } = req.params;
     const user_id = req.user?.user_id;
 
@@ -56,8 +51,7 @@ router.get(
     } else {
       throw new HttpError("No responses found for this form.", 404);
     }
-  })
+  }
 );
-
 
 export default router;

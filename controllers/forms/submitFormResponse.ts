@@ -7,18 +7,15 @@ import {
   sendNewResponseAlert,
   sendSubmissionConfirmation,
 } from "../../helpers/forms/formControllerHelpers";
-
 import { FormResponseBody } from "../../types";
-
-import asyncErrorHandler from "../../middleware/asyncErrorHandler";
 
 const router = Router();
 
 //Submit form response
 router.post(
   "/:form_id/responses",
-
-  asyncErrorHandler(async (req: Request, res: Response) => {
+    
+    async (req: Request, res: Response) => {
     const { form_id } = req.params;
     const { answers, respondent_email } = req.body as FormResponseBody;
 
@@ -97,7 +94,8 @@ router.post(
       message: "Response submitted successfully",
       response_id: response_id,
     });
-  })
+  }
+
 );
 
 export default router;

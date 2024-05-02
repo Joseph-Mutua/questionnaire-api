@@ -6,18 +6,15 @@ import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
 import jwt from "jsonwebtoken";
 
-
-
-
-import asyncErrorHandler from "../../middleware/asyncErrorHandler";
-
 const router = Router();
 
 //Get response by token
 router.get(
   "/:form_id/responses/:responseId/token",
 
-  asyncErrorHandler(async (req: Request, res: Response) => {
+
+    
+    async (req: Request, res: Response) => {
     const { response_token } = req.query as { response_token: string };
 
     if (!response_token) {
@@ -39,7 +36,7 @@ router.get(
       throw new HttpError("Invalid or expired token", 401);
     }
     await getSpecificFormResponse(req, res);
-  })
+  }
 );
 
 export default router;

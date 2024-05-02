@@ -7,16 +7,14 @@ import { pool } from "../../config/db";
 import jwt from "jsonwebtoken";
 
 import { fetchFormDetails } from "../../helpers/forms/formControllerHelpers";
-
-import asyncErrorHandler from "../../middleware/asyncErrorHandler";
-
 const router = Router();
 
 // Routes for form management
 router.post(
   "/",
   authenticateUser,
-  asyncErrorHandler(async (req: AuthRequest, res: Response) => {
+
+  async (req: AuthRequest, res: Response) => {
     const user_id = req.user?.user_id;
     const { title, description } = req.body as {
       title: string;
@@ -75,7 +73,7 @@ router.post(
       form_id: form_id,
       form_details: await fetchFormDetails(pool, form_id),
     });
-  })
+  }
 );
 
 export default router;

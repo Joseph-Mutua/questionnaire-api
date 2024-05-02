@@ -3,12 +3,15 @@ import dotenv from "dotenv";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import "express-async-errors";
+
 import { connectDB } from "./config/db";
 import { runMigrations } from "./config/db/migration";
 
+
 //Routes
-import userRoutes from "./controllers/userController";
-import formRoutes from "./controllers/formController";
+import userRoutes from "./controllers/users";
+import formRoutes from "./controllers/forms";
 import errorHandler from "./middleware/error";
 
 if (process.env.NODE_ENV !== "PRODUCTION") {

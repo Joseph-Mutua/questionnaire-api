@@ -1,21 +1,18 @@
 /* eslint-disable @typescript-eslint/no-misused-promises */
 
-import { Router, Response} from "express";
+import { Router, Response } from "express";
 import { AuthRequest, authenticateUser } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
 
-
-import asyncErrorHandler from "../../middleware/asyncErrorHandler";
-
 const router = Router();
-
 
 //Delete Form
 router.delete(
   "/:id",
   authenticateUser,
-  asyncErrorHandler(async (req: AuthRequest, res: Response) => {
+
+  async (req: AuthRequest, res: Response) => {
     const user_id = req.user?.user_id;
     const form_id = parseInt(req.params.id);
 
@@ -50,7 +47,7 @@ router.delete(
     await pool.query("COMMIT");
 
     res.json({ message: "Form deleted successfully." });
-  })
+  }
 );
 
 export default router;

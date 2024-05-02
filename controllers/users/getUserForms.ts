@@ -7,15 +7,13 @@ import { pool } from "../../config/db";
 import HttpError from "../../utils/httpError";
 import { fetchFormDetails } from "../../helpers/forms/formControllerHelpers";
 
-import asyncErrorHandler from "../../middleware/asyncErrorHandler";
-
 const router = Router();
 
 router.get(
   "/:userId/forms",
   authenticateUser,
 
-  asyncErrorHandler(async (req: AuthRequest, res: Response) => {
+  async (req: AuthRequest, res: Response) => {
     const user_id = req.user?.user_id;
     if (!user_id) {
       throw new HttpError("User must be logged in.", 403);
@@ -37,7 +35,7 @@ router.get(
     const formsDetails = await Promise.all(formsDetailsPromises);
 
     res.json(formsDetails);
-  })
+  }
 );
 
 export default router;
