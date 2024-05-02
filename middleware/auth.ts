@@ -7,7 +7,6 @@ export type AuthRequest = Request & {
   user?: {
     user_id: number;
     email: string;
-    password: string;
   };
 };
 
@@ -23,7 +22,6 @@ export const authenticateUser = async (
     const { rows } = await pool.query<{
       user_id: number;
       email: string;
-      password: string;
     }>("SELECT * FROM users WHERE user_id = $1", [decoded.userId]);
 
     if (rows.length > 0) {

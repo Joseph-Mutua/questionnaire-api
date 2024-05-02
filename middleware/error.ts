@@ -16,7 +16,7 @@ const errorHandler: ErrorRequestHandler = (
     return res.status(statusCode).json({ error: message });
   }
 
-  console.error("ERRRRRRRRR", err);
+  console.error("Error: ", err);
   return res.status(statusCode).json({ error: message });
 };
 
