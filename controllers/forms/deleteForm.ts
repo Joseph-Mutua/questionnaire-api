@@ -45,9 +45,9 @@ router.delete(
     ]);
 
     await pool.query("COMMIT");
-
     res.json({ message: "Form deleted successfully." });
   }
+
 );
 
 export default router;

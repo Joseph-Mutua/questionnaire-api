@@ -14,8 +14,6 @@ const router = Router();
 router.get(
   "/:id",
   authenticateUser,
-
-    
     async (req: AuthRequest, res: Response) => {
     const form_id = parseInt(req.params.id);
     if (!form_id) {

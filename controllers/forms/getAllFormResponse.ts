@@ -7,7 +7,6 @@ import { pool } from "../../config/db";
 
 import { FormDetailsRequestBody } from "../../types";
 
-
 const router = Router();
 
 //Fetch all form responses

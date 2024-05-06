@@ -26,6 +26,7 @@ router.post(
       VALUES ($1, $2, NOW(), NOW(), 0)
       RETURNING response_id;
     `;
+    
     const responseResult = await pool.query<{ response_id: number }>(
       insertResponseQuery,
       [form_id, respondent_email]
@@ -94,6 +95,7 @@ router.post(
       message: "Response submitted successfully",
       response_id: response_id,
     });
+
   }
 
 );
