@@ -16,9 +16,7 @@ router.get(
     if (!req.query.token) {
       throw new HttpError("Token is required", 400);
     }
-
     const token = typeof req.query.token === "string" ? req.query.token : null;
-
     if (!token) {
       throw new HttpError("Token must be a single string", 400);
     }
@@ -44,6 +42,7 @@ router.get(
 
     res.json(form_details);
   }
+  
 );
 
 export default router;

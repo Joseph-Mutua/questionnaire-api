@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-misused-promises */
-
 import { Router, Response } from "express";
 import { AuthRequest, authenticateUser } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
@@ -22,6 +21,7 @@ router.patch(
   "/:id",
   authenticateUser,
 
+  
   async (req: AuthRequest, res: Response) => {
     const user_id = req.user?.user_id;
     const form_id = parseInt(req.params.id);
@@ -33,10 +33,10 @@ router.patch(
     if (!user_id) {
       throw new HttpError("User must be logged in.", 403);
     }
+
     if (!form_id) {
       throw new HttpError("Invalid form ID.", 400);
     }
-
     await pool.query("BEGIN");
 
     const ownerCheckResult = await pool.query<{
@@ -57,6 +57,7 @@ router.patch(
       process.env.JWT_SECRET!,
       { expiresIn: "3d" }
     );
+
     const newResponderUri = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/respond?token=${newToken}`;
 
     await pool.query<{ form_id: number }>(
@@ -70,6 +71,7 @@ router.patch(
         await handleItem(pool, form_id, section_id, item);
       }
     }
+
     const form_details = await fetchFormDetails(pool, form_id);
 
     await pool.query("COMMIT");
@@ -77,7 +79,10 @@ router.patch(
       message: "Form updated successfully",
       form_details: form_details,
     });
+
+
   }
+
 );
 
 export default router;
