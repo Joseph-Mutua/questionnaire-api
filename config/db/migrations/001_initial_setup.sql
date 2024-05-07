@@ -1,3 +1,24 @@
+-- 1. users
+-- 2. form_info
+-- 3. quiz_settings
+-- 4. feedbacks
+-- 5. media_properties
+-- 6. images (depends on media_properties)
+-- 7. form_settings (depends on quiz_settings)
+-- 8. forms (depends on users, form_info, form_settings)
+-- 9. form_versions (depends on forms)
+-- 10. sections (depends on forms)
+-- 11. items (depends on forms, sections)
+-- 12. questions (depends on gradings) 
+-- 13. gradings (depends on feedbacks)
+-- 14. question_items (depends on items, questions)
+-- 15. choice_questions (depends on questions)
+-- 16. options (depends on choice_questions, images)
+-- 17. form_responses (depends on forms, form_versions)
+-- 18. answers (depends on form_responses, questions)
+-- 19. navigation_rules (depends on sections)
+
+
 -- Users who can create/share forms
 CREATE TABLE IF NOT EXISTS users (
     user_id SERIAL PRIMARY KEY,
@@ -24,20 +45,6 @@ CREATE TABLE IF NOT EXISTS feedbacks (
     text TEXT NOT NULL
 );
 
--- Handles scoring and feedback mechanisms for quiz questions
-CREATE TABLE IF NOT EXISTS gradings (
-    grading_id SERIAL PRIMARY KEY,
-    point_value INTEGER NOT NULL, --Points For a Correct Answer
-    when_right INTEGER, --Links to the feedbacks table to fetch the feedback provided when the answer is correct.
-    when_wrong INTEGER,
-    general_feedback INTEGER, --Links to the feedbacks table to provide general feedback applicable to the question regardless of the respondent's answer being right or wrong
-    answer_key TEXT,  -- Store possible correct answers as JSON
-    auto_feedback BOOLEAN DEFAULT FALSE,  -- automate feedback provision
-    FOREIGN KEY (when_right) REFERENCES feedbacks(feedback_id),
-    FOREIGN KEY (when_wrong) REFERENCES feedbacks(feedback_id),
-    FOREIGN KEY (general_feedback) REFERENCES feedbacks(feedback_id)
-);
-
 -- Media properties configuration for images and other media in the form
 CREATE TABLE IF NOT EXISTS media_properties (
     properties_id SERIAL PRIMARY KEY,
@@ -55,6 +62,20 @@ CREATE TABLE IF NOT EXISTS images (
     FOREIGN KEY (properties_id) REFERENCES media_properties(properties_id)
 );
 
+-- Handles scoring and feedback mechanisms for quiz questions
+CREATE TABLE IF NOT EXISTS gradings (
+    grading_id SERIAL PRIMARY KEY,
+    point_value INTEGER NOT NULL, --Points For a Correct Answer
+    when_right INTEGER, --Links to the feedbacks table to fetch the feedback provided when the answer is correct.
+    when_wrong INTEGER,
+    general_feedback INTEGER, --Links to the feedbacks table to provide general feedback applicable to the question regardless of the respondent's answer being right or wrong
+    answer_key TEXT,  -- Store possible correct answers as JSON
+    auto_feedback BOOLEAN DEFAULT FALSE,  -- automate feedback provision
+    FOREIGN KEY (when_right) REFERENCES feedbacks(feedback_id),
+    FOREIGN KEY (when_wrong) REFERENCES feedbacks(feedback_id),
+    FOREIGN KEY (general_feedback) REFERENCES feedbacks(feedback_id)
+);
+
 -- Form Settings linking to Quiz Settings
 CREATE TABLE IF NOT EXISTS form_settings (
     settings_id SERIAL PRIMARY KEY,
@@ -64,20 +85,48 @@ CREATE TABLE IF NOT EXISTS form_settings (
     FOREIGN KEY (quiz_settings_id) REFERENCES quiz_settings(quiz_settings_id)
 );
 
-
--- Core table for forms, linking to settings, owners, and meta-information
+-- Create the forms table without the active_version_id foreign key
 CREATE TABLE IF NOT EXISTS forms (
     form_id SERIAL PRIMARY KEY,
-    owner_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
-    info_id INTEGER NOT NULL,
-    revision_id VARCHAR NOT NULL,
-    responder_uri VARCHAR NOT NULL,
-    settings_id INTEGER,  -- Link to form settings
-    FOREIGN KEY (info_id) REFERENCES form_info(info_id),
-    FOREIGN KEY (settings_id) REFERENCES form_settings(settings_id),
+    revision_id VARCHAR NOT NULL DEFAULT 'v1.0',
+    owner_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    info_id INTEGER NOT NULL REFERENCES form_info(info_id),
+    settings_id INTEGER REFERENCES form_settings(settings_id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Create the form_versions table without the foreign key for form_id
+CREATE TABLE IF NOT EXISTS form_versions (
+    version_id SERIAL PRIMARY KEY,
+    form_id INTEGER NOT NULL,  -- Temporarily without FOREIGN KEY constraint
+    revision_id VARCHAR NOT NULL,
+    content JSONB NOT NULL,
+    is_active BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+
+DO $$
+BEGIN
+    -- Check if the column already exists
+    IF NOT EXISTS (
+        SELECT FROM pg_attribute
+        WHERE attrelid = 'forms'::regclass
+        AND attname = 'active_version_id'
+        AND attnum > 0
+        AND NOT attisdropped
+    ) THEN
+        -- Add the column if it does not exist
+        ALTER TABLE forms ADD COLUMN active_version_id INTEGER;
+        -- Optionally add a foreign key constraint if required
+        ALTER TABLE forms
+        ADD CONSTRAINT fk_forms_active_version_id
+        FOREIGN KEY (active_version_id) REFERENCES form_versions(version_id);
+    END IF;
+END $$;
+
+
 
 
 -- Sections: manage different sections in the form
@@ -121,7 +170,6 @@ CREATE TABLE IF NOT EXISTS questions (
     FOREIGN KEY (grading_id) REFERENCES gradings(grading_id)
 );
 
-
 --textQuestion: respondent can enter a free text response. e.g "Please describe your experience with our service."
 --scaleQuestion: respondent can choose a number from a range.
 --dateQuestion: respondent can choose a date.
@@ -143,7 +191,7 @@ CREATE TABLE IF NOT EXISTS question_items (
 CREATE TABLE IF NOT EXISTS choice_questions (
     question_id SERIAL PRIMARY KEY,
     type VARCHAR CHECK (type IN ('RADIO', 'CHECKBOX', 'DROP_DOWN', 'CHOICE_TYPE_UNSPECIFIED')),
-    shuffle BOOLEAN,
+    shuffle BOOLEAN, --Whether the options should be displayed in random order for different instances of the quiz. Defaults to false
     FOREIGN KEY (question_id) REFERENCES questions(question_id)
 );
 
@@ -166,6 +214,7 @@ CREATE TABLE IF NOT EXISTS form_responses (
     form_id INTEGER NOT NULL,
     responder_email VARCHAR(255),  -- To store respondent's email if collected
     response_token VARCHAR UNIQUE,
+    --version_id INTEGER REFERENCES form_versions(version_id),
     create_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_submitted_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     total_score INTEGER DEFAULT 0,  -- Total score for quiz responses

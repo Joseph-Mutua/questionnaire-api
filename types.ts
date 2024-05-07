@@ -95,7 +95,6 @@ interface Option {
 export interface FormDetails {
   form_id: number;
   revision_id: string;
-  responder_uri: string;
   title: string;
   description: string | null;
   settings_id: number;

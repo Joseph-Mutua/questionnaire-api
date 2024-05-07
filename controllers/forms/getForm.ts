@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-misused-promises */
 
 import { Router, Response } from "express";
-import { AuthRequest, authenticateUser } from "../../middleware/auth";
+import { AuthRequest } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
 
@@ -9,23 +9,20 @@ import { fetchFormDetails } from "../../helpers/forms/formControllerHelpers";
 
 const router = Router();
 
-
 //Form owner route for fetching form
-router.get(
-  "/:id",
-  authenticateUser,
-    async (req: AuthRequest, res: Response) => {
-    const form_id = parseInt(req.params.id);
-    if (!form_id) {
-      throw new HttpError("Invalid form ID provided.", 400);
-    }
-    const form_details = await fetchFormDetails(pool, form_id);
-    if (!form_details) {
-      throw new HttpError("Form not found.", 404);
-    }
-    res.json(form_details);
+router.get("/:id", async (req: AuthRequest, res: Response) => {
+  const form_id = parseInt(req.params.id);
+  if (!form_id) {
+    throw new HttpError("Invalid form ID provided.", 400);
   }
 
-);
+  const form_details = await fetchFormDetails(pool, form_id);
+
+  if (!form_details) {
+    throw new HttpError("Form not found.", 404);
+  }
+  
+  res.json(form_details);
+});
 
 export default router;

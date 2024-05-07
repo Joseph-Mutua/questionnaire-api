@@ -30,12 +30,12 @@ router.get(
       throw new HttpError("Invalid token", 400);
     }
 
-    const { form_id, revisionId } = decoded as {
+    const { form_id } = decoded as {
       form_id: number;
       revisionId: string;
     };
 
-    const form_details = await fetchFormDetails(pool, form_id, revisionId);
+    const form_details = await fetchFormDetails(pool, form_id);
     if (!form_details) {
       throw new HttpError("Form not found or revision does not match.", 404);
     }
