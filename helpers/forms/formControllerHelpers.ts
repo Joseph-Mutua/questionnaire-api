@@ -334,7 +334,6 @@ export async function sendNewResponseAlert(
 
   await sendEmail(ownerEmail, `New Response for Form "${title}"`, emailBody);
 }
-
 export async function getFormOwnerEmail(
   form_id: number
 ): Promise<string | null> {
@@ -344,10 +343,10 @@ export async function getFormOwnerEmail(
   );
   return result.rows[0]?.email ?? null;
 }
-
 export async function fetchFormDetails(
   pool: Pool,
-  form_id: number
+  form_id: number,
+  version_id?: number 
 ): Promise<FormDetails | null> {
   const query = `
     SELECT 
@@ -389,20 +388,17 @@ export async function fetchFormDetails(
             )) FROM items i WHERE i.section_id = s.section_id)
         )) AS sections
     FROM forms f
-    INNER JOIN form_versions fv ON f.active_version_id = fv.version_id
     LEFT JOIN form_info fi ON f.info_id = fi.info_id
     LEFT JOIN form_settings fs ON f.settings_id = fs.settings_id
     LEFT JOIN quiz_settings qs ON fs.quiz_settings_id = qs.quiz_settings_id
-    LEFT JOIN sections s ON fv.form_id = s.form_id
-    WHERE f.form_id = $1 AND fv.form_id = $1
+    INNER JOIN form_versions fv ON f.form_id = fv.form_id AND fv.version_id = COALESCE($2, f.active_version_id)
+    LEFT JOIN sections s ON f.form_id = s.form_id
+    WHERE f.form_id = $1
     GROUP BY f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz, fs.quiz_settings_id, fs.update_window_hours, fs.wants_email_updates, fv.revision_id
   `;
-  const details = await pool.query<FormDetails>(query, [form_id]);
+  const details = await pool.query<FormDetails>(query, [form_id, version_id]);
   return details.rows.length ? details.rows[0] : null;
 }
-
-
-
 export const getSpecificFormResponse = async (req: Request, res: Response) => {
   const { form_id, responseId } = req.params;
 
@@ -427,7 +423,6 @@ export const getSpecificFormResponse = async (req: Request, res: Response) => {
   }
 };
 
-
 export const incrementVersion = (currentVersion: string) => {
   const versionParts = currentVersion.substring(1).split(".");
   let major = parseInt(versionParts[0]);
@@ -438,10 +433,9 @@ export const incrementVersion = (currentVersion: string) => {
     major += 1;
     minor = 0;
   }
-  
+
   return `v${major}.${minor}`;
 };
-
 export const generateToken = (userId: string) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: "24h" });
 };

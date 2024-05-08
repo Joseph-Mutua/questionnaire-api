@@ -18,7 +18,6 @@
 -- 18. answers (depends on form_responses, questions)
 -- 19. navigation_rules (depends on sections)
 
-
 -- Users who can create/share forms
 CREATE TABLE IF NOT EXISTS users (
     user_id SERIAL PRIMARY KEY,
@@ -56,8 +55,8 @@ CREATE TABLE IF NOT EXISTS media_properties (
 CREATE TABLE IF NOT EXISTS images (
     image_id SERIAL PRIMARY KEY,
     content_uri VARCHAR NOT NULL,  -- A URI from which to download the image
-    alt_text VARCHAR,  -- image description
-    source_uri VARCHAR,  -- the URI used to insert the image into the form
+    alt_text VARCHAR, -- image description
+    source_uri VARCHAR, -- the URI used to insert the image into the form
     properties_id INTEGER,  -- additional settings for the image, such as alignment and width
     FOREIGN KEY (properties_id) REFERENCES media_properties(properties_id)
 );
@@ -118,11 +117,8 @@ BEGIN
         ALTER TABLE forms
         ADD CONSTRAINT fk_forms_active_version_id
         FOREIGN KEY (active_version_id) REFERENCES form_versions(version_id);
-    END IF;
+    END IF; 
 END $$;
-
-
-
 
 -- Sections: manage different sections in the form
 CREATE TABLE IF NOT EXISTS sections (
@@ -134,7 +130,6 @@ CREATE TABLE IF NOT EXISTS sections (
     UNIQUE(form_id, seq_order),  -- 'seq_order' is unique per form
     FOREIGN KEY (form_id) REFERENCES forms(form_id)
 );
-
 
 CREATE TABLE IF NOT EXISTS items (
     item_id SERIAL PRIMARY KEY,
@@ -154,8 +149,6 @@ CREATE TABLE IF NOT EXISTS items (
 -- --textItem: Displays a title and description on the page.
 -- --imageItem: Displays an image on the page.
 
---TODO: ADD Image Items
-
 -- Questions of various types that can be part of the form
 CREATE TABLE IF NOT EXISTS questions (
     question_id SERIAL PRIMARY KEY,
@@ -174,6 +167,7 @@ CREATE TABLE IF NOT EXISTS questions (
 --              form where each row specifies a different budget item, and the respondent needs to input amounts or percentages.
 
 -- Links form items to their respective questions, enabling dynamic form structures.
+
 CREATE TABLE IF NOT EXISTS question_items (
     item_id INTEGER,
     question_id INTEGER,

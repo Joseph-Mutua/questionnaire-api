@@ -11,6 +11,7 @@ import {
   getSpecificFormResponse,
   handleItem,
   handleSection,
+  incrementVersion,
   sendNewResponseAlert,
   sendSubmissionConfirmation,
   updateOrCreateSettings,
@@ -30,69 +31,48 @@ const router = Router();
 // Create Form
 router.post("/", authenticateUser, async (req: AuthRequest, res: Response) => {
   const user_id = req.user?.user_id;
+
   const { title, description } = req.body as {
     title: string;
     description: string;
   };
 
-  if (!user_id) {
-    throw new HttpError("User must be logged in.", 403);
-  }
+  if (!user_id) throw new HttpError("User must be logged in.", 403);
 
   await pool.query("BEGIN");
 
-  const form_info_query =
-    "INSERT INTO form_info(title, description) VALUES($1, $2) RETURNING info_id";
+  const infoResult = await pool.query<{ info_id: number }>(
+    "INSERT INTO form_info(title, description) VALUES($1, $2) RETURNING info_id",
+    [title, description]
+  );
+  const info_id = infoResult.rows[0].info_id;
 
-  const form_info_values = [title, description];
-  const form_info_result = await pool.query<{ info_id: number }>(
-    form_info_query,
-    form_info_values
+  const formResult = await pool.query<{ form_id: number }>(
+    "INSERT INTO forms(owner_id, info_id) VALUES($1, $2) RETURNING form_id",
+    [user_id, info_id]
   );
 
-  const revisionId = "v1.0";
-  const forms_query =
-    "INSERT INTO forms(owner_id, info_id, revision_id) VALUES($1, $2, $3) RETURNING form_id";
+  const form_id = formResult.rows[0].form_id;
 
-  const forms_values = [user_id, form_info_result.rows[0].info_id, revisionId];
-  const forms_result = await pool.query<{ form_id: number }>(
-    forms_query,
-    forms_values
-  );
-
-  const form_id = forms_result.rows[0].form_id;
-  const initSettingsQuery =
-    "INSERT INTO form_settings(quiz_settings_id, update_window_hours, wants_email_updates) VALUES(NULL, 24, FALSE) RETURNING settings_id";
-  const settingsResult = await pool.query<{ settings_id: number }>(
-    initSettingsQuery
-  );
-  const settings_id = settingsResult.rows[0].settings_id;
-  await pool.query("UPDATE forms SET settings_id = $1 WHERE form_id = $2", [
-    settings_id,
-    form_id,
-  ]);
-
-  // Create the initial version
   const versionResult = await pool.query<{ version_id: number }>(
-    "INSERT INTO form_versions(form_id, revision_id, content) VALUES($1, $2, $3) RETURNING version_id",
-    [
-      forms_result.rows[0].form_id,
-      "v1.0",
-      JSON.stringify({ title, description }),
-    ]
+    "INSERT INTO form_versions(form_id, revision_id, content, is_active) VALUES($1, 'v1.0', $2::jsonb, TRUE) RETURNING version_id",
+    [form_id, req.body]
   );
+  const version_id = versionResult.rows[0].version_id;
 
-  // Link the active version
   await pool.query(
     "UPDATE forms SET active_version_id = $1 WHERE form_id = $2",
-    [versionResult.rows[0].version_id, forms_result.rows[0].form_id]
+    [version_id, form_id]
   );
 
   await pool.query("COMMIT");
+
+  const formDetails = await fetchFormDetails(pool, form_id);
+  await pool.query("COMMIT");
+
   res.status(201).json({
-    message: "Form created successfully",
-    form_id: form_id,
-    form_details: await fetchFormDetails(pool, form_id),
+    message: "Form created successfully and version initialized.",
+    form: formDetails,
   });
 });
 
@@ -361,8 +341,6 @@ router.patch(
       settings: QuizSettings;
     };
 
-    const { content } = req.body;
-
     if (!user_id) {
       throw new HttpError("User must be logged in.", 403);
     }
@@ -370,36 +348,10 @@ router.patch(
     if (!form_id) {
       throw new HttpError("Invalid form ID.", 400);
     }
+
     await pool.query("BEGIN");
 
-    const ownerCheckResult = await pool.query<{
-      owner_id: number;
-      revision_id: string;
-    }>("SELECT owner_id, revision_id FROM forms WHERE form_id = $1", [form_id]);
-
     await updateOrCreateSettings(pool, settings, form_id);
-
-    const currentRevision = ownerCheckResult.rows[0].revision_id;
-    const revisionParts = currentRevision.substring(1).split(".");
-    let majorVersion = parseInt(revisionParts[0]);
-    majorVersion += 1;
-    const newRevisionId = `v${majorVersion}.0`;
-
-    await pool.query<{ form_id: number }>(
-      "UPDATE forms SET revision_id = $1 WHERE form_id = $2 AND owner_id = $3",
-      [newRevisionId, form_id, user_id]
-    );
-
-    //version id
-    const versionResult = await pool.query<{ version_id: number }>(
-      "INSERT INTO form_versions(form_id, revision_id, content) VALUES($1, $2, $3) RETURNING version_id",
-      [form_id, newRevisionId, JSON.stringify(content)]
-    );
-
-    await pool.query(
-      "UPDATE forms SET active_version_id = $1 WHERE form_id = $2",
-      [versionResult.rows[0].version_id, form_id]
-    );
 
     for (const section of sections) {
       const section_id = await handleSection(pool, form_id, section);
@@ -408,76 +360,41 @@ router.patch(
       }
     }
 
-    const form_details = await fetchFormDetails(pool, form_id);
+    const currentRevision = (
+      await pool.query<{ revision_id: string }>(
+        "SELECT revision_id FROM form_versions WHERE form_id = $1 AND is_active = TRUE",
+        [form_id]
+      )
+    ).rows[0].revision_id;
 
+    const newRevisionId = incrementVersion(currentRevision);
+
+    await pool.query(
+      "UPDATE form_versions SET is_active = FALSE WHERE form_id = $1",
+      [form_id]
+    );
+
+    const versionResult = await pool.query<{ version_id: number }>(
+      "INSERT INTO form_versions(form_id, revision_id, content, is_active) VALUES($1, $2, $3, TRUE) RETURNING version_id",
+      [form_id, newRevisionId, JSON.stringify(req.body)]
+    );
+    const newVersionId = versionResult.rows[0].version_id;
+
+    await pool.query(
+      "UPDATE forms SET active_version_id = $1 WHERE form_id = $2",
+      [newVersionId, form_id]
+    );
+
+    await pool.query("COMMIT");
+
+    const form_details = await fetchFormDetails(pool, form_id);
     await pool.query("COMMIT");
     res.status(200).json({
       message: "Form updated successfully",
       form_details: form_details,
     });
   }
-);
 
-//Revert form version
-router.patch(
-  "/:form_id/revert/:version_id",
-
-  authenticateUser,
-  async (req: AuthRequest, res: Response) => {
-    const { form_id, version_id } = req.params;
-    const user_id = req.user?.user_id;
-
-    if (!user_id) {
-      return res.status(403).json({ error: "User must be logged in." });
-    }
-
-    await pool.query("BEGIN");
-
-    // Validate ownership and check if version belongs to the form
-    const validateQuery = `
-    SELECT 1 FROM forms
-    WHERE form_id = $1 AND owner_id = $2 AND
-    EXISTS (SELECT 1 FROM form_versions WHERE form_id = $1 AND version_id = $3);
-  `;
-    const isValid = await pool.query(validateQuery, [
-      form_id,
-      user_id,
-      version_id,
-    ]);
-
-    if (isValid.rowCount !== 1) {
-      await pool.query("ROLLBACK");
-      return res
-        .status(404)
-        .json({ error: "Form or version not found or user is not the owner." });
-    }
-
-    // Use CTE to perform all updates in one SQL statement
-    const revertVersionQuery = `
-    WITH deactivated_versions AS (
-      UPDATE form_versions
-      SET is_active = FALSE
-      WHERE form_id = $1
-      RETURNING version_id
-    ),
-    activated_version AS (
-      UPDATE form_versions
-      SET is_active = TRUE
-      WHERE version_id = $2
-      RETURNING version_id
-    )
-    UPDATE forms
-    SET active_version_id = $2
-    WHERE form_id = $1;
-  `;
-
-    await pool.query(revertVersionQuery, [form_id, version_id]);
-
-    await pool.query("COMMIT");
-    res.json({
-      message: "Form reverted to the selected version successfully.",
-    });
-  }
 );
 
 export default router;

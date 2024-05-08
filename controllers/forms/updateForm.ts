@@ -66,6 +66,7 @@ router.patch(
       "INSERT INTO form_versions(form_id, revision_id, content, is_active) VALUES($1, $2, $3, TRUE) RETURNING version_id",
       [form_id, newRevisionId, JSON.stringify(req.body)]
     );
+
     const newVersionId = versionResult.rows[0].version_id;
 
     await pool.query(
@@ -81,6 +82,7 @@ router.patch(
       message: "Form updated successfully",
       form_details: form_details,
     });
+    
   }
 
 );

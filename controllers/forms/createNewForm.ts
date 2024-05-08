@@ -17,7 +17,6 @@ router.post("/", authenticateUser, async (req: AuthRequest, res: Response) => {
   };
 
   if (!user_id) throw new HttpError("User must be logged in.", 403);
-
   await pool.query("BEGIN");
 
   const infoResult = await pool.query<{ info_id: number }>(
@@ -26,7 +25,6 @@ router.post("/", authenticateUser, async (req: AuthRequest, res: Response) => {
   );
   const info_id = infoResult.rows[0].info_id;
 
-  // Insert into forms
   const formResult = await pool.query<{ form_id: number }>(
     "INSERT INTO forms(owner_id, info_id) VALUES($1, $2) RETURNING form_id",
     [user_id, info_id]
@@ -34,21 +32,21 @@ router.post("/", authenticateUser, async (req: AuthRequest, res: Response) => {
 
   const form_id = formResult.rows[0].form_id;
 
-  // Insert into form_versions
   const versionResult = await pool.query<{ version_id: number }>(
     "INSERT INTO form_versions(form_id, revision_id, content, is_active) VALUES($1, 'v1.0', $2::jsonb, TRUE) RETURNING version_id",
     [form_id, req.body]
   );
+
   const version_id = versionResult.rows[0].version_id;
 
-  // Update forms to set active_version_id
   await pool.query(
     "UPDATE forms SET active_version_id = $1 WHERE form_id = $2",
     [version_id, form_id]
   );
 
-  await pool.query("COMMIT");
 
+  await pool.query("COMMIT");
+  
   const formDetails = await fetchFormDetails(pool, form_id);
   await pool.query("COMMIT");
 
@@ -59,12 +57,3 @@ router.post("/", authenticateUser, async (req: AuthRequest, res: Response) => {
 });
 
 export default router;
-
-//TODO -->update revision id such that it matches the revision id on the form versions table
-//Fetch form by form id and revision id
-//Route to update the active version of the form
-//When user fetches form they automatically get the latestst version
-//Responses should be fetched automatically based on the active version
-//User should be ab;le to fetch responses based on a specific version
-//User should be able to generate response uri based on a specific version
-//Every response should be tied to a specific version of the form
