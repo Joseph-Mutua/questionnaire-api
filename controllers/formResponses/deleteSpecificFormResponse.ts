@@ -9,13 +9,11 @@ const router = Router();
 
 // DELETE a specific form response by response_id
 router.delete(
-  "/responses/:response_id",
+  "/:response_id",
   authenticateUser,
   async (req: AuthRequest, res: Response) => {
     const { response_id } = req.params;
     const user_id = req.user?.user_id;
-
-      // Optional: Check if the user has the right to delete the response
       const permissionCheckQuery = `
         SELECT r.response_id FROM form_responses r
         JOIN forms f ON f.form_id = r.form_id
@@ -39,6 +37,7 @@ router.delete(
         DELETE FROM answers
         WHERE response_id = $1;
       `;
+      
       await pool.query(deleteAnswersQuery, [response_id]);
 
       const deleteResponseQuery = `
