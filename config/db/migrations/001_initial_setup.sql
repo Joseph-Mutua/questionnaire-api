@@ -85,10 +85,9 @@ CREATE TABLE IF NOT EXISTS form_settings (
     FOREIGN KEY (quiz_settings_id) REFERENCES quiz_settings(quiz_settings_id)
 );
 
--- Create the forms table without the active_version_id foreign key
+-- Core table for forms
 CREATE TABLE IF NOT EXISTS forms (
     form_id SERIAL PRIMARY KEY,
-    revision_id VARCHAR NOT NULL DEFAULT 'v1.0',
     owner_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     info_id INTEGER NOT NULL REFERENCES form_info(info_id),
     settings_id INTEGER REFERENCES form_settings(settings_id),
@@ -96,20 +95,18 @@ CREATE TABLE IF NOT EXISTS forms (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create the form_versions table without the foreign key for form_id
+-- Handle form versioning 
 CREATE TABLE IF NOT EXISTS form_versions (
     version_id SERIAL PRIMARY KEY,
-    form_id INTEGER NOT NULL,  -- Temporarily without FOREIGN KEY constraint
-    revision_id VARCHAR NOT NULL,
+    form_id INTEGER NOT NULL,
+    revision_id VARCHAR NOT NULL DEFAULT 'v1.0',
     content JSONB NOT NULL,
     is_active BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-
 DO $$
 BEGIN
-    -- Check if the column already exists
     IF NOT EXISTS (
         SELECT FROM pg_attribute
         WHERE attrelid = 'forms'::regclass
@@ -117,9 +114,7 @@ BEGIN
         AND attnum > 0
         AND NOT attisdropped
     ) THEN
-        -- Add the column if it does not exist
         ALTER TABLE forms ADD COLUMN active_version_id INTEGER;
-        -- Optionally add a foreign key constraint if required
         ALTER TABLE forms
         ADD CONSTRAINT fk_forms_active_version_id
         FOREIGN KEY (active_version_id) REFERENCES form_versions(version_id);

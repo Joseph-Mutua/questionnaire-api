@@ -6,9 +6,10 @@ import getAllFormResponse from "./getAllFormResponse";
 import getFormByToken from "./getFormByToken";
 import getFormResponseByToken from "./getFormResponseByToken";
 import getSpecificFormResponse from "./getSpecificFormResponse";
-import revertFormVersion from "./revertFormVersion";
+import revertFormVersion from "./setActiveFormVersion";
 import submitFormResponse from "./submitFormResponse";
 import updateForm from "./updateForm";
+import setActiveFormVersion from "./setActiveFormVersion";
 
 
 const router = Router();
@@ -23,6 +24,7 @@ router.use(getSpecificFormResponse);
 router.use(revertFormVersion);
 router.use(submitFormResponse);
 router.use(updateForm);
+router.use(setActiveFormVersion);
 
 
 export default router;

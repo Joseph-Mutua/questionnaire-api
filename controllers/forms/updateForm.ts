@@ -36,6 +36,7 @@ router.patch(
     if (!form_id) {
       throw new HttpError("Invalid form ID.", 400);
     }
+
     await pool.query("BEGIN");
 
     await updateOrCreateSettings(pool, settings, form_id);
@@ -54,33 +55,34 @@ router.patch(
       )
     ).rows[0].revision_id;
 
-    console.log("currentRevision", currentRevision);
-
     const newRevisionId = incrementVersion(currentRevision);
-    console.log("🚀 ~ newRevisionId:", newRevisionId);
 
-    // Deactivate all other versions
     await pool.query(
       "UPDATE form_versions SET is_active = FALSE WHERE form_id = $1",
       [form_id]
     );
 
-    // Insert new version and set it as active
-    await pool.query<{ version_id: number }>(
+    const versionResult = await pool.query<{ version_id: number }>(
       "INSERT INTO form_versions(form_id, revision_id, content, is_active) VALUES($1, $2, $3, TRUE) RETURNING version_id",
-      [form_id, newRevisionId, JSON.stringify(req.body)] // Ensure content is properly formatted as JSON string
+      [form_id, newRevisionId, JSON.stringify(req.body)]
+    );
+    const newVersionId = versionResult.rows[0].version_id;
+
+    await pool.query(
+      "UPDATE forms SET active_version_id = $1 WHERE form_id = $2",
+      [newVersionId, form_id]
     );
 
-    await pool.query("COMMIT"); // Commit all changes
+    await pool.query("COMMIT");
 
     const form_details = await fetchFormDetails(pool, form_id);
-
     await pool.query("COMMIT");
     res.status(200).json({
       message: "Form updated successfully",
       form_details: form_details,
     });
   }
+
 );
 
 export default router;
