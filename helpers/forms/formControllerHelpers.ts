@@ -400,7 +400,8 @@ export async function fetchFormDetails(
   return details.rows.length ? details.rows[0] : null;
 }
 export const getSpecificFormResponse = async (req: Request, res: Response) => {
-  const { form_id, responseId } = req.params;
+  console.log("🚀 ~ getSpecificFormResponse ~ req:", req.params)
+  const { form_id, response_id } = req.params;
 
   const query = `
             SELECT r.response_id, r.form_id, r.responder_email, r.create_time, r.last_submitted_time, r.total_score, 
@@ -415,9 +416,12 @@ export const getSpecificFormResponse = async (req: Request, res: Response) => {
             WHERE r.form_id = $1 AND r.response_id = $2
             GROUP BY r.response_id;
         `;
-  const { rows } = await pool.query(query, [form_id, responseId]);
+  const { rows } = await pool.query(query, [form_id, response_id]);
+
+  console.log("🚀 ~ getSpecificFormResponse ~ rows:", rows)
+
   if (rows.length > 0) {
-    res.json(rows[0]);
+    res.status(200).json(rows[0]);
   } else {
     throw new HttpError("Response not found.", 404);
   }

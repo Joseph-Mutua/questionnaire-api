@@ -11,7 +11,7 @@ const router = Router();
 //Get response by token
 router.get(
   "/:form_id/responses/:responseId/token",
-    async (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     const { response_token } = req.query as { response_token: string };
 
     if (!response_token) {
@@ -29,6 +29,7 @@ router.get(
       "SELECT response_id FROM form_responses WHERE response_id = $1 AND form_id = $2 AND response_token = $3",
       [decoded.response_id, decoded.form_id, response_token]
     );
+
     if (validationResult.rows.length === 0) {
       throw new HttpError("Invalid or expired token", 401);
     }

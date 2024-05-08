@@ -201,13 +201,14 @@ CREATE TABLE IF NOT EXISTS options (
 CREATE TABLE IF NOT EXISTS form_responses (
     response_id SERIAL PRIMARY KEY,
     form_id INTEGER NOT NULL,
+    version_id INTEGER,
     responder_email VARCHAR(255),  -- To store respondent's email if collected
     response_token VARCHAR UNIQUE,
-    --version_id INTEGER REFERENCES form_versions(version_id),
     create_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_submitted_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     total_score INTEGER DEFAULT 0,  -- Total score for quiz responses
-    FOREIGN KEY (form_id) REFERENCES forms(form_id)
+    FOREIGN KEY (form_id) REFERENCES forms(form_id),
+    FOREIGN KEY (version_id) REFERENCES form_versions(version_id)
 );
 
 -- Stores answers to specific questions from form submissions

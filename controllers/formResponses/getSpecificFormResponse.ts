@@ -12,8 +12,7 @@ router.get(
   "/:form_id/responses/:responseId",
   authenticateUser,
 
-    
-    async (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     const { form_id, responseId } = req.params;
 
     const query = `
@@ -36,9 +35,6 @@ router.get(
       throw new HttpError("Response not found.", 404);
     }
   }
-
-
 );
-
 
 export default router;
