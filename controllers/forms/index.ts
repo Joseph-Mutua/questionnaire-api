@@ -6,20 +6,26 @@ import getAllFormResponse from "./getAllFormResponse";
 import getFormByToken from "./getFormByToken";
 import getFormResponseByToken from "./getFormResponseByToken";
 import getSpecificFormResponse from "./getSpecificFormResponse";
+import revertFormVersion from "./setActiveFormVersion";
 import submitFormResponse from "./submitFormResponse";
 import updateForm from "./updateForm";
+import setActiveFormVersion from "./setActiveFormVersion";
+import generateSharingLink from "./generateSharingLink";
 
 
 const router = Router();
 
 router.use(createNewForm);
+router.use(getFormByToken);
 router.use(getForm);
 router.use(deleteForm);
 router.use(getAllFormResponse);
-router.use(getFormByToken);
 router.use(getFormResponseByToken);
 router.use(getSpecificFormResponse);
+router.use(revertFormVersion);
 router.use(submitFormResponse);
 router.use(updateForm);
+router.use(setActiveFormVersion);
+router.use(generateSharingLink);
 
 export default router;

@@ -31,8 +31,8 @@ router.post(
       insertResponseQuery,
       [form_id, respondent_email]
     );
-    const response_id = responseResult.rows[0].response_id;
 
+    const response_id = responseResult.rows[0].response_id;
     let total_score = 0;
 
     for (const [question_id, answer_details] of Object.entries(answers)) {
@@ -57,12 +57,14 @@ router.post(
         feedback,
       ]);
       total_score += score;
+
     }
 
     await pool.query(
       "UPDATE form_responses SET total_score = $1 WHERE response_id = $2",
       [total_score, response_id]
     );
+
     const response_token = jwt.sign(
       { response_id, form_id },
       process.env.JWT_SECRET!,

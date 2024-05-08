@@ -11,9 +11,6 @@ const router = Router();
 //Get response by token
 router.get(
   "/:form_id/responses/:responseId/token",
-
-
-    
     async (req: Request, res: Response) => {
     const { response_token } = req.query as { response_token: string };
 

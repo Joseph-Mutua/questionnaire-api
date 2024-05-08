@@ -10,7 +10,6 @@ const router = Router();
 
 router.post(
   "/login",
-
     async (req: Request, res: Response) => {
     const { email, password } = req.body as {
       email: string;

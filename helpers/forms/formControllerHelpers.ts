@@ -318,7 +318,7 @@ export async function sendNewResponseAlert(
     return;
   }
 
- const responseLink = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/${form_id}/responses/${responseId}/token?response_token=${responseToken}`;
+  const responseLink = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/${form_id}/responses/${responseId}/token?response_token=${responseToken}`;
   const alertTemplate = loadEmailTemplate("ownerNewResponseNotification");
 
   const submissionDetails = await pool.query<{ title: string }>(
@@ -334,7 +334,6 @@ export async function sendNewResponseAlert(
 
   await sendEmail(ownerEmail, `New Response for Form "${title}"`, emailBody);
 }
-
 export async function getFormOwnerEmail(
   form_id: number
 ): Promise<string | null> {
@@ -344,67 +343,62 @@ export async function getFormOwnerEmail(
   );
   return result.rows[0]?.email ?? null;
 }
-
 export async function fetchFormDetails(
   pool: Pool,
   form_id: number,
-  revisionId?: string
+  version_id?: number 
 ): Promise<FormDetails | null> {
-  const revisionCondition = revisionId ? `AND f.revision_id = $2` : "";
-  const queryParams: (number | string)[] = [form_id];
-  if (revisionId) queryParams.push(revisionId);
-
   const query = `
-        SELECT 
-            f.form_id, f.revision_id, f.responder_uri, fi.title, fi.description, fs.settings_id, qs.is_quiz,
-            fs.quiz_settings_id, fs.update_window_hours, fs.wants_email_updates, 
-            json_agg(json_build_object(
-                'section_id', s.section_id, 
-                'title', s.title, 
-                'description', s.description,
-                'seq_order', s.seq_order,
-                'items', (SELECT json_agg(json_build_object(
-                    'item_id', i.item_id, 
-                    'title', i.title, 
-                    'description', i.description, 
-                    'kind', i.kind,
-                    'questions', (SELECT json_agg(json_build_object(
-                        'question_id', q.question_id, 
-                        'required', q.required, 
-                        'kind', q.kind,
-                        'grading', (SELECT json_build_object(
-                            'grading_id', g.grading_id,
-                            'point_value', g.point_value,
-                            'when_right', g.when_right,
-                            'when_wrong', g.when_wrong,
-                            'general_feedback', g.general_feedback,
-                            'answer_key', g.answer_key,
-                            'auto_feedback', g.auto_feedback
-                        ) FROM gradings g WHERE g.grading_id = q.grading_id),
-                        'options', (CASE WHEN q.kind = 'choice_question' THEN (
-                            SELECT json_agg(json_build_object(
-                                'option_id', o.option_id,
-                                'value', o.value,
-                                'image_id', o.image_id,
-                                'is_other', o.is_other,
-                                'goto_action', o.goto_action
-                            )) FROM options o WHERE o.question_id = q.question_id
-                        ) ELSE NULL END)
-                    )) FROM questions q JOIN question_items qi ON q.question_id = qi.question_id WHERE qi.item_id = i.item_id)
-                )) FROM items i WHERE i.section_id = s.section_id)
-            )) AS sections
-        FROM forms f
-        LEFT JOIN form_info fi ON f.info_id = fi.info_id
-        LEFT JOIN form_settings fs ON f.settings_id = fs.settings_id
-        LEFT JOIN quiz_settings qs ON fs.quiz_settings_id = qs.quiz_settings_id
-        LEFT JOIN sections s ON f.form_id = s.form_id
-        WHERE f.form_id = $1 ${revisionCondition}
-        GROUP BY f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz, fs.quiz_settings_id, fs.update_window_hours, fs.wants_email_updates;
-    `;
-  const details = await pool.query<FormDetails>(query, queryParams);
+    SELECT 
+        f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz,
+        fs.quiz_settings_id, fs.update_window_hours, fs.wants_email_updates, fv.revision_id,
+        json_agg(json_build_object(
+            'section_id', s.section_id, 
+            'title', s.title, 
+            'description', s.description,
+            'seq_order', s.seq_order,
+            'items', (SELECT json_agg(json_build_object(
+                'item_id', i.item_id, 
+                'title', i.title, 
+                'description', i.description, 
+                'kind', i.kind,
+                'questions', (SELECT json_agg(json_build_object(
+                    'question_id', q.question_id, 
+                    'required', q.required, 
+                    'kind', q.kind,
+                    'grading', (SELECT json_build_object(
+                        'grading_id', g.grading_id,
+                        'point_value', g.point_value,
+                        'when_right', g.when_right,
+                        'when_wrong', g.when_wrong,
+                        'general_feedback', g.general_feedback,
+                        'answer_key', g.answer_key,
+                        'auto_feedback', g.auto_feedback
+                    ) FROM gradings g WHERE g.grading_id = q.grading_id),
+                    'options', (CASE WHEN q.kind = 'choice_question' THEN (
+                        SELECT json_agg(json_build_object(
+                            'option_id', o.option_id,
+                            'value', o.value,
+                            'image_id', o.image_id,
+                            'is_other', o.is_other,
+                            'goto_action', o.goto_action
+                        )) FROM options o WHERE o.question_id = q.question_id
+                    ) ELSE NULL END)
+                )) FROM questions q JOIN question_items qi ON q.question_id = qi.question_id WHERE qi.item_id = i.item_id)
+            )) FROM items i WHERE i.section_id = s.section_id)
+        )) AS sections
+    FROM forms f
+    LEFT JOIN form_info fi ON f.info_id = fi.info_id
+    LEFT JOIN form_settings fs ON f.settings_id = fs.settings_id
+    LEFT JOIN quiz_settings qs ON fs.quiz_settings_id = qs.quiz_settings_id
+    INNER JOIN form_versions fv ON f.form_id = fv.form_id AND fv.version_id = COALESCE($2, f.active_version_id)
+    LEFT JOIN sections s ON f.form_id = s.form_id
+    WHERE f.form_id = $1
+    GROUP BY f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz, fs.quiz_settings_id, fs.update_window_hours, fs.wants_email_updates, fv.revision_id
+  `;
+  const details = await pool.query<FormDetails>(query, [form_id, version_id]);
   return details.rows.length ? details.rows[0] : null;
 }
-
 export const getSpecificFormResponse = async (req: Request, res: Response) => {
   const { form_id, responseId } = req.params;
 
@@ -429,6 +423,19 @@ export const getSpecificFormResponse = async (req: Request, res: Response) => {
   }
 };
 
+export const incrementVersion = (currentVersion: string) => {
+  const versionParts = currentVersion.substring(1).split(".");
+  let major = parseInt(versionParts[0]);
+  let minor = parseInt(versionParts[1]);
+
+  minor += 1;
+  if (minor >= 10) {
+    major += 1;
+    minor = 0;
+  }
+
+  return `v${major}.${minor}`;
+};
 export const generateToken = (userId: string) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: "24h" });
 };

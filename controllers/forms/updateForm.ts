@@ -3,12 +3,12 @@ import { Router, Response } from "express";
 import { AuthRequest, authenticateUser } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
-import jwt from "jsonwebtoken";
 
 import {
   fetchFormDetails,
   handleItem,
   handleSection,
+  incrementVersion,
   updateOrCreateSettings,
 } from "../../helpers/forms/formControllerHelpers";
 
@@ -21,7 +21,6 @@ router.patch(
   "/:id",
   authenticateUser,
 
-  
   async (req: AuthRequest, res: Response) => {
     const user_id = req.user?.user_id;
     const form_id = parseInt(req.params.id);
@@ -37,33 +36,10 @@ router.patch(
     if (!form_id) {
       throw new HttpError("Invalid form ID.", 400);
     }
+
     await pool.query("BEGIN");
 
-    const ownerCheckResult = await pool.query<{
-      owner_id: number;
-      revision_id: string;
-    }>("SELECT owner_id, revision_id FROM forms WHERE form_id = $1", [form_id]);
-
     await updateOrCreateSettings(pool, settings, form_id);
-
-    const currentRevision = ownerCheckResult.rows[0].revision_id;
-    const revisionParts = currentRevision.substring(1).split(".");
-    let majorVersion = parseInt(revisionParts[0]);
-    majorVersion += 1;
-    const newRevisionId = `v${majorVersion}.0`;
-
-    const newToken = jwt.sign(
-      { form_id: form_id, revisionId: newRevisionId, permissions: "fill" },
-      process.env.JWT_SECRET!,
-      { expiresIn: "3d" }
-    );
-
-    const newResponderUri = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/respond?token=${newToken}`;
-
-    await pool.query<{ form_id: number }>(
-      "UPDATE forms SET revision_id = $1, responder_uri = $2 WHERE form_id = $3 AND owner_id = $4",
-      [newRevisionId, newResponderUri, form_id, user_id]
-    );
 
     for (const section of sections) {
       const section_id = await handleSection(pool, form_id, section);
@@ -72,15 +48,41 @@ router.patch(
       }
     }
 
-    const form_details = await fetchFormDetails(pool, form_id);
+    const currentRevision = (
+      await pool.query<{ revision_id: string }>(
+        "SELECT revision_id FROM form_versions WHERE form_id = $1 AND is_active = TRUE",
+        [form_id]
+      )
+    ).rows[0].revision_id;
 
+    const newRevisionId = incrementVersion(currentRevision);
+
+    await pool.query(
+      "UPDATE form_versions SET is_active = FALSE WHERE form_id = $1",
+      [form_id]
+    );
+
+    const versionResult = await pool.query<{ version_id: number }>(
+      "INSERT INTO form_versions(form_id, revision_id, content, is_active) VALUES($1, $2, $3, TRUE) RETURNING version_id",
+      [form_id, newRevisionId, JSON.stringify(req.body)]
+    );
+
+    const newVersionId = versionResult.rows[0].version_id;
+
+    await pool.query(
+      "UPDATE forms SET active_version_id = $1 WHERE form_id = $2",
+      [newVersionId, form_id]
+    );
+
+    await pool.query("COMMIT");
+
+    const form_details = await fetchFormDetails(pool, form_id);
     await pool.query("COMMIT");
     res.status(200).json({
       message: "Form updated successfully",
       form_details: form_details,
     });
-
-
+    
   }
 
 );
