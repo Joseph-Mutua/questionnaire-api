@@ -12,7 +12,6 @@ import { FormResponseBody } from "../../types";
 const router = Router();
 
 //Submit form response
-//Submit form response
 router.post("/:form_id/responses", async (req: Request, res: Response) => {
   const { form_id } = req.params;
   const { answers, respondent_email } = req.body as FormResponseBody;
@@ -23,9 +22,11 @@ router.post("/:form_id/responses", async (req: Request, res: Response) => {
         SELECT version_id FROM form_versions
         WHERE form_id = $1 AND is_active = TRUE;
       `;
+
   const versionResult = await pool.query<{ version_id: number }>(versionQuery, [
     form_id,
   ]);
+
   const activeVersionId = versionResult.rows[0]?.version_id;
 
   if (!activeVersionId) {
@@ -90,6 +91,7 @@ router.post("/:form_id/responses", async (req: Request, res: Response) => {
 
   // Send notifications
   if (respondent_email) {
+
     await sendSubmissionConfirmation(
       respondent_email,
       response_id,
@@ -112,5 +114,7 @@ router.post("/:form_id/responses", async (req: Request, res: Response) => {
     response_id: response_id,
   });
 });
+
+
 
 export default router;

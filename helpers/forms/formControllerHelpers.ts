@@ -266,6 +266,7 @@ export async function ensureFeedbackExists(pool: Pool, feedbackIds: number[]) {
       if (i === 2) resultIds.general_feedback = id;
     }
   }
+
   return resultIds;
 }
 
@@ -278,15 +279,15 @@ export async function sendSubmissionConfirmation(
   const responseLink = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/${form_id}/responses/${responseId}/token?response_token=${responseToken}`;
 
   const confirmationTemplate = loadEmailTemplate(
-    "respondentSubmissionConfirmation"
+    "respondentSubmissionConfirmation",
+    { responseLink }
   );
 
-  const emailBody = confirmationTemplate.replace(
-    "{{responseLink}}",
-    responseLink
+  await sendEmail(
+    recipientEmail,
+    "Form Submission Confirmation",
+    confirmationTemplate
   );
-
-  await sendEmail(recipientEmail, "Form Submission Confirmation", emailBody);
 }
 
 export async function sendNewResponseAlert(
@@ -319,21 +320,26 @@ export async function sendNewResponseAlert(
   }
 
   const responseLink = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/${form_id}/responses/${responseId}/token?response_token=${responseToken}`;
-  const alertTemplate = loadEmailTemplate("ownerNewResponseNotification");
-
+  
   const submissionDetails = await pool.query<{ title: string }>(
     "SELECT title FROM form_info WHERE info_id IN (SELECT info_id FROM forms WHERE form_id = $1)",
     [form_id]
   );
   const { title } = submissionDetails.rows[0];
 
-  const emailBody = alertTemplate
-    .replace("{{formTitle}}", title)
-    .replace("{{responderEmail}}", responderEmail)
-    .replace("{{responseLink}}", responseLink);
+  const alertTemplate = loadEmailTemplate("ownerNewResponseNotification", {
+    formTitle: title,
+    responderEmail: responderEmail,
+    responseLink: responseLink,
+  });
 
-  await sendEmail(ownerEmail, `New Response for Form "${title}"`, emailBody);
+  await sendEmail(
+    ownerEmail,
+    `New Response for Form "${title}"`,
+    alertTemplate
+  );
 }
+
 export async function getFormOwnerEmail(
   form_id: number
 ): Promise<string | null> {
@@ -346,7 +352,7 @@ export async function getFormOwnerEmail(
 export async function fetchFormDetails(
   pool: Pool,
   form_id: number,
-  version_id?: number 
+  version_id?: number
 ): Promise<FormDetails | null> {
   const query = `
     SELECT 
@@ -400,7 +406,6 @@ export async function fetchFormDetails(
   return details.rows.length ? details.rows[0] : null;
 }
 export const getSpecificFormResponse = async (req: Request, res: Response) => {
-  console.log("🚀 ~ getSpecificFormResponse ~ req:", req.params)
   const { form_id, response_id } = req.params;
 
   const query = `
@@ -417,8 +422,6 @@ export const getSpecificFormResponse = async (req: Request, res: Response) => {
             GROUP BY r.response_id;
         `;
   const { rows } = await pool.query(query, [form_id, response_id]);
-
-  console.log("🚀 ~ getSpecificFormResponse ~ rows:", rows)
 
   if (rows.length > 0) {
     res.status(200).json(rows[0]);
@@ -440,6 +443,7 @@ export const incrementVersion = (currentVersion: string) => {
 
   return `v${major}.${minor}`;
 };
+
 export const generateToken = (userId: string) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: "24h" });
 };

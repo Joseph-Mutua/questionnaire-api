@@ -1,0 +1,10 @@
+doctype html
+html
+  body
+    p Hello,
+    p You have been invited to collaborate on a form. Please click the link below to register/login and start collaborating.
+    if password
+      p Your temporary password is: #{password}
+      p Please change your password after logging in.
+    a(href=loginUrl) Login
+

@@ -23,11 +23,12 @@ import {
   QuizSettings,
   Section,
 } from "../../types";
-
+import { inviteUser, isOwner } from "../../helpers/users/userControllerHelpers";
 
 const router = Router();
 
 
+//Forms 
 // Create Form
 router.post("/", authenticateUser, async (req: AuthRequest, res: Response) => {
   const user_id = req.user?.user_id;
@@ -116,6 +117,54 @@ router.delete(
   }
 );
 
+//Generate Sharing Link
+router.get(
+  "/:form_id/share_link",
+  authenticateUser,
+  
+  async (req: AuthRequest, res: Response) => {
+    const { form_id } = req.params;
+    const user_id = req.user?.user_id;
+
+    if (!user_id) {
+      throw new HttpError("User must be logged in.", 403);
+    }
+
+    const result = await pool.query<{ active_version_id: number }>(
+      "SELECT active_version_id FROM forms WHERE form_id = $1",
+      [form_id]
+    );
+
+    if (result.rows.length === 0) {
+      throw new HttpError("Form not found.", 404);
+    }
+
+    const activeVersionId = result.rows[0].active_version_id;
+
+    if (!activeVersionId) {
+      throw new HttpError("Active version not set for this form.", 404);
+    }
+
+    const payload = {
+      form_id: form_id,
+      version_id: activeVersionId,
+    };
+
+    const token = jwt.sign(payload, process.env.JWT_SECRET!, {
+      expiresIn: "1d",
+    });
+
+    const sharingLink = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/respond?token=${token}`;
+
+    res.status(200).json({
+      message: "Sharing link generated successfully.",
+      link: sharingLink,
+    });
+
+  }
+
+);
+
 //Fetch all form responses
 router.get(
   "/:form_id/responses",
@@ -176,14 +225,14 @@ router.get("/:id", async (req: AuthRequest, res: Response) => {
   res.json(form_details);
 });
 
-//Public route for accessing form
+//Public route for accessing form by token
 router.get(
   "/respond",
-
   async (req: Request, res: Response) => {
     if (!req.query.token) {
       throw new HttpError("Token is required", 400);
     }
+
     const token = typeof req.query.token === "string" ? req.query.token : null;
     if (!token) {
       throw new HttpError("Token must be a single string", 400);
@@ -215,7 +264,6 @@ router.get(
 //Get Form response by token
 router.get(
   "/:form_id/responses/:responseId/token",
-
   async (req: Request, res: Response) => {
     const { response_token } = req.query as { response_token: string };
 
@@ -378,6 +426,7 @@ router.patch(
       "INSERT INTO form_versions(form_id, revision_id, content, is_active) VALUES($1, $2, $3, TRUE) RETURNING version_id",
       [form_id, newRevisionId, JSON.stringify(req.body)]
     );
+
     const newVersionId = versionResult.rows[0].version_id;
 
     await pool.query(
@@ -394,7 +443,6 @@ router.patch(
       form_details: form_details,
     });
   }
-
 );
 
 // DELETE a specific form response by response_id
@@ -405,38 +453,130 @@ router.delete(
     const { response_id } = req.params;
     const user_id = req.user?.user_id;
 
-      // Optional: Check if the user has the right to delete the response
-      const permissionCheckQuery = `
+    // Optional: Check if the user has the right to delete the response
+    const permissionCheckQuery = `
         SELECT r.response_id FROM form_responses r
         JOIN forms f ON f.form_id = r.form_id
         WHERE r.response_id = $1 AND f.owner_id = $2;
       `;
-      const permissionResult = await pool.query(permissionCheckQuery, [
-        response_id,
-        user_id,
-      ]);
+    const permissionResult = await pool.query(permissionCheckQuery, [
+      response_id,
+      user_id,
+    ]);
 
-      if (permissionResult.rowCount === 0) {
-      
-        throw new HttpError("Unauthorized to delete this response.", 403);
-      }
+    if (permissionResult.rowCount === 0) {
+      throw new HttpError("Unauthorized to delete this response.", 403);
+    }
 
-      await pool.query("BEGIN");
+    await pool.query("BEGIN");
 
-      const deleteAnswersQuery = `
+    const deleteAnswersQuery = `
         DELETE FROM answers
         WHERE response_id = $1;
       `;
-      await pool.query(deleteAnswersQuery, [response_id]);
+    await pool.query(deleteAnswersQuery, [response_id]);
 
-      const deleteResponseQuery = `
+    const deleteResponseQuery = `
         DELETE FROM form_responses
         WHERE response_id = $1;
       `;
-      await pool.query(deleteResponseQuery, [response_id]);
+    await pool.query(deleteResponseQuery, [response_id]);
 
-      await pool.query("COMMIT");
-      res.status(200).json({ message: "Response deleted successfully." });
+    await pool.query("COMMIT");
+    res.status(200).json({ message: "Response deleted successfully." });
+  }
+);
+
+// Update form response within a permissible time window
+router.patch(
+  "/:form_id/responses/:response_id",
+  async (req: AuthRequest, res: Response) => {
+    const { form_id, response_id } = req.params;
+    const { answers } = req.body as FormResponseBody;
+    const user_id = req.user?.user_id;
+
+    await pool.query("BEGIN");
+
+    const permissionCheckQuery = `
+        SELECT fr.response_id, fr.create_time, fs.update_window_hours
+        FROM form_responses fr
+        JOIN forms f ON f.form_id = fr.form_id
+        JOIN form_settings fs ON fs.settings_id = f.settings_id
+        WHERE fr.form_id = $1 AND fr.response_id = $2 AND f.owner_id = $3;
+      `;
+    const permissionResult = await pool.query<{
+      create_time: string;
+      update_window_hours: number;
+    }>(permissionCheckQuery, [form_id, response_id, user_id]);
+
+    if (permissionResult.rowCount === 0) {
+      throw new HttpError(
+        "Unauthorized to update this response or response not found.",
+        403
+      );
+    }
+
+    const { create_time, update_window_hours } = permissionResult.rows[0];
+    const currentTime = new Date();
+    const responseCreateTime = new Date(create_time);
+    const expiryTime = new Date(
+      responseCreateTime.getTime() + update_window_hours * 3600000
+    );
+
+    if (currentTime > expiryTime) {
+      throw new HttpError(
+        "The time window for updating this response has expired.",
+        403
+      );
+    }
+
+    // Update answers within the response
+    for (const [question_id, answer_details] of Object.entries(answers)) {
+      const updateAnswerQuery = `
+          UPDATE answers
+          SET value = $1, score = $2, feedback = $3
+          WHERE response_id = $4 AND question_id = $5;
+        `;
+      const score = answer_details.grade ? answer_details.grade.score : 0;
+      const feedback = answer_details.grade
+        ? JSON.stringify(answer_details.grade.feedback)
+        : null;
+      const answer_value = answer_details.text_answers
+        ? JSON.stringify(answer_details.text_answers.answers)
+        : "{}";
+
+      await pool.query(updateAnswerQuery, [
+        answer_value,
+        score,
+        feedback,
+        response_id,
+        question_id,
+      ]);
+    }
+
+    await pool.query("COMMIT");
+    res.status(200).json({
+      message: "Response updated successfully.",
+    });
+  }
+);
+
+//Invite New User
+router.post(
+  "/invite",
+  authenticateUser,
+  isOwner,
+  async (req: AuthRequest, res: Response) => {
+    const { email, form_id, role_name } = req.body as {
+      email: string;
+      form_id: number;
+      role_name: string;
+    };
+
+    await inviteUser(email, form_id, role_name);
+    res
+      .status(200)
+      .send({ message: "Invitation sent successfully.", success: true });
   }
 );
 
