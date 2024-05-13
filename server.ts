@@ -12,6 +12,8 @@ import { runMigrations } from "./config/db/migration";
 //Routes
 import userRoutes from "./controllers/users";
 import formRoutes from "./controllers/forms";
+import formResponseRoutes from "./controllers/formResponses";
+
 import errorHandler from "./middleware/error";
 
 if (process.env.NODE_ENV !== "PRODUCTION") {
@@ -37,6 +39,7 @@ app.use(express.json());
 
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/forms", formRoutes);
+app.use("/api/v1/responses", formResponseRoutes);
 
 app.use(errorHandler);
 

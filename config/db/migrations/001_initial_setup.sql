@@ -1,23 +1,3 @@
--- 1. users
--- 2. form_info
--- 3. quiz_settings
--- 4. feedbacks
--- 5. media_properties
--- 6. images (depends on media_properties)
--- 7. form_settings (depends on quiz_settings)
--- 8. forms (depends on users, form_info, form_settings)
--- 9. form_versions (depends on forms)
--- 10. sections (depends on forms)
--- 11. items (depends on forms, sections)
--- 12. questions (depends on gradings) 
--- 13. gradings (depends on feedbacks)
--- 14. question_items (depends on items, questions)
--- 15. choice_questions (depends on questions)
--- 16. options (depends on choice_questions, images)
--- 17. form_responses (depends on forms, form_versions)
--- 18. answers (depends on form_responses, questions)
--- 19. navigation_rules (depends on sections)
-
 -- Users who can create/share forms
 CREATE TABLE IF NOT EXISTS users (
     user_id SERIAL PRIMARY KEY,
@@ -93,6 +73,30 @@ CREATE TABLE IF NOT EXISTS forms (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+
+-- Roles definition
+CREATE TABLE IF NOT EXISTS roles (
+    role_id SERIAL PRIMARY KEY,
+    name VARCHAR(255) UNIQUE NOT NULL CHECK (name IN ('Owner', 'Editor', 'Viewer'))
+);
+
+
+INSERT INTO roles (name) VALUES ('Owner'), ('Editor'), ('Viewer')
+ON CONFLICT (name) DO NOTHING;
+
+
+-- User roles in relation to forms
+CREATE TABLE IF NOT EXISTS form_user_roles (
+  form_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  role_id INTEGER NOT NULL,
+  PRIMARY KEY (form_id, user_id),
+  FOREIGN KEY (form_id) REFERENCES forms(form_id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+  FOREIGN KEY (role_id) REFERENCES roles(role_id)
+);
+
 
 -- Handle form versioning 
 CREATE TABLE IF NOT EXISTS form_versions (
@@ -201,13 +205,14 @@ CREATE TABLE IF NOT EXISTS options (
 CREATE TABLE IF NOT EXISTS form_responses (
     response_id SERIAL PRIMARY KEY,
     form_id INTEGER NOT NULL,
+    version_id INTEGER,
     responder_email VARCHAR(255),  -- To store respondent's email if collected
     response_token VARCHAR UNIQUE,
-    --version_id INTEGER REFERENCES form_versions(version_id),
     create_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_submitted_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     total_score INTEGER DEFAULT 0,  -- Total score for quiz responses
-    FOREIGN KEY (form_id) REFERENCES forms(form_id)
+    FOREIGN KEY (form_id) REFERENCES forms(form_id),
+    FOREIGN KEY (version_id) REFERENCES form_versions(version_id)
 );
 
 -- Stores answers to specific questions from form submissions
@@ -231,3 +236,4 @@ CREATE TABLE IF NOT EXISTS navigation_rules (
     FOREIGN KEY (section_id) REFERENCES sections(section_id),
     FOREIGN KEY (target_section_id) REFERENCES sections(section_id)
 );
+

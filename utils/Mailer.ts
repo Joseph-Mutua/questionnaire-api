@@ -2,6 +2,8 @@ import nodemailer from "nodemailer";
 import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
+import * as pug from "pug";
+import { EmailTemplateData } from "../types";
 
 dotenv.config({ path: "./config/.env" });
 
@@ -21,22 +23,22 @@ export async function sendEmail(to: string, subject: string, html: string) {
     html,
   };
 
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log(`Email sent successfully to ${to}`);
-  } catch (error) {
-    console.error("Error sending email:", error);
-    throw error; 
-  }
+  await transporter.sendMail(mailOptions);
+  console.log(`Email sent successfully to ${to}`);
 }
 
-export function loadEmailTemplate(templateName: string) {
+export function loadEmailTemplate(
+  templateName: string,
+  data: EmailTemplateData
+) {
   const templatePath = path.resolve(
     __dirname,
     ".",
     "templates",
-    `${templateName}.html`
+    `${templateName}.pug`
   );
   const templateContent = fs.readFileSync(templatePath, "utf8");
-  return templateContent;
+  const compiledFunction = pug.compile(templateContent);
+
+  return compiledFunction(data);
 }

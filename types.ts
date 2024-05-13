@@ -104,3 +104,11 @@ export interface FormDetails {
   wants_email_updates: boolean;
   sections: Section[];
 }
+
+export interface EmailTemplateData {
+  responseLink?: string;
+  formTitle?: string;
+  responderEmail?: string;
+  loginUrl?: string;
+  password?: string;
+}
