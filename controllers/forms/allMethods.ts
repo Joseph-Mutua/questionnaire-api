@@ -489,74 +489,89 @@ router.delete(
 
 // Update form response within a permissible time window
 router.patch(
-  "/:form_id/responses/:response_id",
+  "/:id",
+  authenticateUser,
   async (req: AuthRequest, res: Response) => {
-    const { form_id, response_id } = req.params;
-    const { answers } = req.body as FormResponseBody;
     const user_id = req.user?.user_id;
+    const form_id = parseInt(req.params.id);
+    const { sections, settings } = req.body as {
+      sections: Section[];
+      settings: QuizSettings;
+    };
+
+    if (!user_id) {
+      throw new HttpError("User must be logged in.", 403);
+    }
+
+    if (!form_id) {
+      throw new HttpError("Invalid form ID.", 400);
+    }
+
+    // Check if user is owner or editor
+    const roleCheckQuery = `
+    SELECT r.name
+    FROM form_user_roles fur
+    JOIN roles r ON fur.role_id = r.role_id
+    WHERE fur.form_id = $1 AND fur.user_id = $2;
+  `;
+    const roleResult = await pool.query<{ name: string }>(roleCheckQuery, [
+      form_id,
+      user_id,
+    ]);
+
+    if (
+      roleResult.rowCount === 0 ||
+      !["Owner", "Editor"].includes(roleResult.rows[0].name)
+    ) {
+      throw new HttpError(
+        "Unauthorized to update this form. Only owners and editors are permitted.",
+        403
+      );
+    }
 
     await pool.query("BEGIN");
 
-    const permissionCheckQuery = `
-        SELECT fr.response_id, fr.create_time, fs.update_window_hours
-        FROM form_responses fr
-        JOIN forms f ON f.form_id = fr.form_id
-        JOIN form_settings fs ON fs.settings_id = f.settings_id
-        WHERE fr.form_id = $1 AND fr.response_id = $2 AND f.owner_id = $3;
-      `;
-    const permissionResult = await pool.query<{
-      create_time: string;
-      update_window_hours: number;
-    }>(permissionCheckQuery, [form_id, response_id, user_id]);
+    await updateOrCreateSettings(pool, settings, form_id);
 
-    if (permissionResult.rowCount === 0) {
-      throw new HttpError(
-        "Unauthorized to update this response or response not found.",
-        403
-      );
+    for (const section of sections) {
+      const section_id = await handleSection(pool, form_id, section);
+      for (const item of section.items) {
+        await handleItem(pool, form_id, section_id, item);
+      }
     }
 
-    const { create_time, update_window_hours } = permissionResult.rows[0];
-    const currentTime = new Date();
-    const responseCreateTime = new Date(create_time);
-    const expiryTime = new Date(
-      responseCreateTime.getTime() + update_window_hours * 3600000
+    const currentRevision = (
+      await pool.query<{ revision_id: string }>(
+        "SELECT revision_id FROM form_versions WHERE form_id = $1 AND is_active = TRUE",
+        [form_id]
+      )
+    ).rows[0].revision_id;
+
+    const newRevisionId = incrementVersion(currentRevision);
+
+    await pool.query(
+      "UPDATE form_versions SET is_active = FALSE WHERE form_id = $1",
+      [form_id]
     );
 
-    if (currentTime > expiryTime) {
-      throw new HttpError(
-        "The time window for updating this response has expired.",
-        403
-      );
-    }
+    const versionResult = await pool.query<{ version_id: number }>(
+      "INSERT INTO form_versions(form_id, revision_id, content, is_active) VALUES($1, $2, $3::jsonb, TRUE) RETURNING version_id",
+      [form_id, newRevisionId, JSON.stringify(req.body)]
+    );
 
-    // Update answers within the response
-    for (const [question_id, answer_details] of Object.entries(answers)) {
-      const updateAnswerQuery = `
-          UPDATE answers
-          SET value = $1, score = $2, feedback = $3
-          WHERE response_id = $4 AND question_id = $5;
-        `;
-      const score = answer_details.grade ? answer_details.grade.score : 0;
-      const feedback = answer_details.grade
-        ? JSON.stringify(answer_details.grade.feedback)
-        : null;
-      const answer_value = answer_details.text_answers
-        ? JSON.stringify(answer_details.text_answers.answers)
-        : "{}";
+    const newVersionId = versionResult.rows[0].version_id;
 
-      await pool.query(updateAnswerQuery, [
-        answer_value,
-        score,
-        feedback,
-        response_id,
-        question_id,
-      ]);
-    }
+    await pool.query(
+      "UPDATE forms SET active_version_id = $1 WHERE form_id = $2",
+      [newVersionId, form_id]
+    );
 
     await pool.query("COMMIT");
+
+    const form_details = await fetchFormDetails(pool, form_id);
     res.status(200).json({
-      message: "Response updated successfully.",
+      message: "Form updated successfully",
+      form_details: form_details,
     });
   }
 );

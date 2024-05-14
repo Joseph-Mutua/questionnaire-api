@@ -32,6 +32,7 @@ router.get(
     const formsDetailsPromises = basicFormsResult.rows.map((row) =>
       fetchFormDetails(pool, row.form_id)
     );
+    
     const formsDetails = await Promise.all(formsDetailsPromises);
 
     res.json(formsDetails);

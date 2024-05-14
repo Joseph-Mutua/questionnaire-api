@@ -320,7 +320,7 @@ export async function sendNewResponseAlert(
   }
 
   const responseLink = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/${form_id}/responses/${responseId}/token?response_token=${responseToken}`;
-  
+
   const submissionDetails = await pool.query<{ title: string }>(
     "SELECT title FROM form_info WHERE info_id IN (SELECT info_id FROM forms WHERE form_id = $1)",
     [form_id]
@@ -443,6 +443,19 @@ export const incrementVersion = (currentVersion: string) => {
 
   return `v${major}.${minor}`;
 };
+
+export async function saveDocumentContent(roomId: string, content: string) {
+  const query = `
+            UPDATE form_versions
+            SET content = $1
+            WHERE version_id = (
+                SELECT active_version_id
+                FROM forms
+                WHERE form_id = $2
+            )`;
+  await pool.query(query, [content, roomId]); // Ensure 'pool' is accessible here, might need importing or passing as a parameter
+  console.log(`Content for room ${roomId} saved successfully.`);
+}
 
 export const generateToken = (userId: string) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: "24h" });
