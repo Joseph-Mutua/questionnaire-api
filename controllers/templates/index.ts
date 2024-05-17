@@ -8,6 +8,7 @@ import getTemplate from "./getSpecificTemplate";
 import getUserTemplates from "./getUserSpecificTemplates";
 import getAllTemplates from "./getAllTemplates";
 import updateTemplate from "./updateTemplate";
+import getAllTemplateCategories from "./getAllTemplateCategories";
 
 const router = Router();
 
@@ -19,6 +20,7 @@ router.use(getTemplate);
 router.use(getAllTemplates);
 router.use(getUserTemplates);
 router.use(updateTemplate);
+router.use(getAllTemplateCategories);
 
 
 export default router;
