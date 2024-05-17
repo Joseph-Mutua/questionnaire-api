@@ -9,6 +9,7 @@
     "dev": "nodemon server.ts",
     "lint": "eslint . --fix"
   },
+  
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -27,6 +28,7 @@
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0"
   },
+
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",

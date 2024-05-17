@@ -2,6 +2,7 @@ export type QuizSettings = {
   is_quiz: boolean;
   update_window_hours: number | null;
   wants_email_updates: boolean;
+  quiz_settings_id?: number; 
 };
 
 export interface QuestionOptions {

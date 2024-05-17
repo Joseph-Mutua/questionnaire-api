@@ -10,7 +10,7 @@ import { fetchFormDetails } from "../../helpers/forms/formControllerHelpers";
 const router = Router();
 
 router.get(
-  "/:userId/forms",
+  "/:user_id/forms",
   authenticateUser,
 
   async (req: AuthRequest, res: Response) => {

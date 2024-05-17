@@ -34,12 +34,11 @@ router.get("/respond", async (req: Request, res: Response) => {
   if (!formDetails) {
     return res.status(404).json({ message: "Form not found" });
   }
-  
+
   res.status(200).json({
     message: "Form retrieved successfully.",
     form: formDetails,
   });
-
 });
 
 export default router;

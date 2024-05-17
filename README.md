@@ -4,7 +4,7 @@
 
 ### **Users**
 
-- `userId` (PK)
+- `user_id` (PK)
 - `email`
 - `password`
 
@@ -166,7 +166,6 @@ Here is a simplified sketch of how these entities might be represented in an ERD
 | |
 
 > -- [FormResponses] --< [Answers]
-
 
 //TODO -->update revision id such that it matches the revision id on the form versions table
 //Fetch form by form id and revision id

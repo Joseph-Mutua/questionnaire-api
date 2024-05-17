@@ -18,15 +18,14 @@ export const authenticateUser = async (
   const token = req.headers.authorization?.split(" ")[1] || "";
   const decoded = jwt.verify(token, process.env.JWT_SECRET!);
 
-  if (typeof decoded !== "string" && decoded.userId) {
+  if (typeof decoded !== "string" && decoded.user_id) {
     const { rows } = await pool.query<{
       user_id: number;
       email: string;
-    }>("SELECT * FROM users WHERE user_id = $1", [decoded.userId]);
+    }>("SELECT * FROM users WHERE user_id = $1", [decoded.user_id]);
 
     if (rows.length > 0) {
       req.user = rows[0];
-
       next();
     } else {
       throw new HttpError("User not found!", 404);

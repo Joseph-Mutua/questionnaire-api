@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-misused-promises */
 
-import { Router, Response } from "express";
+import { Router, Response, NextFunction } from "express";
 import { pool } from "../../config/db";
 import { AuthRequest, authenticateUser } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
@@ -12,11 +12,9 @@ router.delete(
   "/:response_id",
 
   authenticateUser,
-  async (req: AuthRequest, res: Response) => {
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
     const { response_id } = req.params;
-    console.log("🚀 ~ response_id:", response_id);
     const user_id = req.user?.user_id;
-    console.log("🚀 ~ user_id:", user_id);
 
     const permissionCheckQuery = `
         SELECT r.response_id FROM form_responses r
@@ -33,23 +31,28 @@ router.delete(
       throw new HttpError("Unauthorized to delete this response.", 403);
     }
 
-    await pool.query("BEGIN");
+    try {
+      await pool.query("BEGIN");
 
-    const deleteAnswersQuery = `
+      const deleteAnswersQuery = `
         DELETE FROM answers
         WHERE response_id = $1;
       `;
 
-    await pool.query(deleteAnswersQuery, [response_id]);
+      await pool.query(deleteAnswersQuery, [response_id]);
 
-    const deleteResponseQuery = `
+      const deleteResponseQuery = `
         DELETE FROM form_responses
         WHERE response_id = $1;
       `;
-    await pool.query(deleteResponseQuery, [response_id]);
+      await pool.query(deleteResponseQuery, [response_id]);
 
-    await pool.query("COMMIT");
-    res.status(200).json({ message: "Response deleted successfully." });
+      await pool.query("COMMIT");
+      res.status(200).json({ message: "Response deleted successfully." });
+    } catch (error) {
+      await pool.query("ROLLBACK");
+      next(error);
+    }
   }
 );
 
