@@ -84,6 +84,25 @@ export async function updateOrCreateSettings(
   return settingsId;
 }
 
+// export async function handleSection(
+//   pool: Pool,
+//   id: number,
+//   section: Section,
+//   isForm: boolean
+// ) {
+//   const idField = isForm ? "form_id" : "template_id";
+
+//   const sectionResult = await pool.query<{ section_id: number }>(
+//     `INSERT INTO sections (${idField}, title, description, seq_order) 
+//      VALUES ($1, $2, $3, $4) 
+//      ON CONFLICT (${idField}, seq_order) 
+//      DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description 
+//      RETURNING section_id`,
+//     [id, section.title, section.description, section.seq_order]
+//   );
+//   return sectionResult.rows[0].section_id;
+// }
+
 export async function handleSection(
   pool: Pool,
   id: number,
@@ -102,6 +121,7 @@ export async function handleSection(
   );
   return sectionResult.rows[0].section_id;
 }
+
 
 export async function handleItem(
   pool: Pool,

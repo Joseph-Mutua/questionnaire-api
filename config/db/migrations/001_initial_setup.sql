@@ -133,15 +133,28 @@ BEGIN
 END $$;
 
 -- Sections: manage different sections in the form
+-- Sections: manage different sections in the form
 CREATE TABLE IF NOT EXISTS sections (
     section_id SERIAL PRIMARY KEY,
-    form_id INTEGER NOT NULL,
+    form_id INTEGER,
+    template_id INTEGER,
     title VARCHAR NOT NULL,
     description TEXT,
     seq_order INTEGER,
-    UNIQUE(form_id, seq_order),  -- 'seq_order' is unique per form
-    FOREIGN KEY (form_id) REFERENCES forms(form_id)
+    UNIQUE(form_id, seq_order),
+    UNIQUE(template_id, seq_order),
+    FOREIGN KEY (form_id) REFERENCES forms(form_id),
+    FOREIGN KEY (template_id) REFERENCES templates(template_id)
 );
+
+--unique indexes to ensure unique seq_order for form_id and template_id
+CREATE UNIQUE INDEX sections_form_id_seq_order_idx
+ON sections (form_id, seq_order)
+WHERE template_id IS NULL;
+
+CREATE UNIQUE INDEX sections_template_id_seq_order_idx
+ON sections (template_id, seq_order)
+WHERE form_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS items (
     item_id SERIAL PRIMARY KEY,

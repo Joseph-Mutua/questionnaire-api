@@ -7,7 +7,7 @@ const router = Router();
 //Get all templates
 
 router.get(
-  "/templates",
+  "/",
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await pool.query(`

@@ -13,7 +13,7 @@ import { Item } from "../../types";
 const router = Router();
 
 router.post(
-  "/forms/create-from-template",
+  "/create-from-template",
   authenticateUser,
   async (req: AuthRequest, res: Response, next: NextFunction) => {
     const { template_id } = req.body as { template_id: number };
@@ -30,10 +30,6 @@ router.post(
       }>("SELECT info_id, settings_id FROM templates WHERE template_id = $1", [
         template_id,
       ]);
-
-      if (templateResult.rows.length === 0) {
-        throw new HttpError("Template not found.", 404);
-      }
 
       const { info_id, settings_id } = templateResult.rows[0];
 
@@ -65,6 +61,8 @@ router.post(
         "SELECT section_id, title, description, seq_order FROM sections WHERE form_id = $1 ORDER BY seq_order",
         [template_id]
       );
+
+      console.log("🚀 ~ sectionsResult:", sectionsResult);
 
       for (const section of sectionsResult.rows) {
         const newSectionId = await handleSection(pool, form_id, section, true);

@@ -1,6 +1,4 @@
 import { Router } from "express";
-
-import createFormFromTemplate from "./createFormFromTemplate";
 import createNewTemplate from "./createNewTemplate";
 import createTemplateCategory from "./createTemplateCategory";
 import deleteTemplate from "./deleteTemplate";
@@ -14,7 +12,6 @@ import deleteTemplateCategory from "./deleteTemplateCategory";
 
 const router = Router();
 
-router.use(createFormFromTemplate);
 router.use(createNewTemplate);
 router.use(createTemplateCategory);
 router.use(deleteTemplate);

@@ -13,7 +13,7 @@ import {
 const router = Router();
 
 router.patch(
-  "/templates/:template_id",
+  "/:template_id",
   authenticateUser,
   async (req: AuthRequest, res: Response, next: NextFunction) => {
     const { template_id } = req.params;
@@ -33,6 +33,17 @@ router.patch(
 
     try {
       await pool.query("BEGIN");
+
+      // Verify the category_id exists
+      const categoryCheck = await pool.query(
+        "SELECT category_id FROM template_categories WHERE category_id = $1",
+        [category_id]
+      );
+
+      if (categoryCheck.rows.length === 0) {
+        throw new HttpError("Category does not exist.", 400);
+      }
+
       const infoResult = await pool.query<{ info_id: number }>(
         `UPDATE form_info 
          SET title = $1, description = $2 
@@ -76,7 +87,7 @@ router.patch(
           false
         );
         for (const item of section.items) {
-          await handleItem(pool,  Number(template_id), section_id, item, false);
+          await handleItem(pool, Number(template_id), section_id, item, false);
         }
       }
 
