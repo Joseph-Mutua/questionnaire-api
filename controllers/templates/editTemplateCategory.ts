@@ -5,27 +5,26 @@ import { pool } from "../../config/db";
 
 const router = Router();
 
-router.post(
-  "/categories",
+// Update Template Category
+router.put(
+  "/categories/:id",
   authenticateUser,
   async (req: AuthRequest, res: Response, next: NextFunction) => {
+    const { id } = req.params;
     const { name, description } = req.body as {
       name: string;
       description: string;
     };
-
     try {
       await pool.query("BEGIN");
       const result = await pool.query<{ category_id: number }>(
-        "INSERT INTO template_categories (name, description) VALUES ($1, $2) RETURNING category_id",
-        [name, description]
+        "UPDATE template_categories SET name = $1, description = $2 WHERE category_id = $3 RETURNING category_id, name, description",
+        [name, description, id]
       );
-
       await pool.query("COMMIT");
-
-      res.status(201).json({
-        message: "Category created successfully.",
-        category_id: result.rows[0].category_id,
+      res.status(200).json({
+        message: "Category updated successfully.",
+        category: result.rows[0],
       });
     } catch (error) {
       await pool.query("ROLLBACK");

@@ -75,16 +75,24 @@ CREATE TABLE IF NOT EXISTS forms (
 );
 
 
--- Roles definition
+-- roles definition
 CREATE TABLE IF NOT EXISTS roles (
     role_id SERIAL PRIMARY KEY,
-    name VARCHAR(255) UNIQUE NOT NULL CHECK (name IN ('Owner', 'Editor', 'Viewer'))
+    name VARCHAR(255) UNIQUE NOT NULL CHECK (name IN ('Owner', 'Editor', 'Viewer', 'SuperAdmin'))
 );
 
 
-INSERT INTO roles (name) VALUES ('Owner'), ('Editor'), ('Viewer')
+INSERT INTO roles (name) VALUES ('Owner'), ('Editor'), ('Viewer'), ('SuperAdmin')
 ON CONFLICT (name) DO NOTHING;
 
+
+CREATE TABLE IF NOT EXISTS user_roles (
+    user_id INTEGER NOT NULL,
+    role_id INTEGER NOT NULL,
+    PRIMARY KEY (user_id, role_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (role_id) REFERENCES roles(role_id)
+);
 
 -- User roles in relation to forms
 CREATE TABLE IF NOT EXISTS form_user_roles (

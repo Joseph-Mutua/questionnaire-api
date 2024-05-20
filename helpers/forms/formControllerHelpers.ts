@@ -103,7 +103,6 @@ export async function handleSection(
   return sectionResult.rows[0].section_id;
 }
 
-
 export async function handleItem(
   pool: Pool,
   id: number,
@@ -135,7 +134,6 @@ export async function handleItem(
     }
   }
 }
-
 
 export async function handleQuestion(
   pool: Pool,
@@ -186,7 +184,6 @@ export async function handleQuestion(
   return question_id;
 }
 
-
 export async function handleChoiceQuestion(
   pool: Pool,
   question: Question,
@@ -221,7 +218,6 @@ export async function handleChoiceQuestion(
   }
 }
 
-
 export async function validateImageId(pool: Pool, image_id: number) {
   if (image_id === null || image_id === undefined) {
     return null;
@@ -237,8 +233,10 @@ export async function validateImageId(pool: Pool, image_id: number) {
   return image_id;
 }
 
-
-export async function handleGrading(pool: Pool, grading: Grading): Promise<number> {
+export async function handleGrading(
+  pool: Pool,
+  grading: Grading
+): Promise<number> {
   const feedbackIds = await ensureFeedbackExists(pool, [
     grading.when_right,
     grading.when_wrong,
@@ -261,7 +259,6 @@ export async function handleGrading(pool: Pool, grading: Grading): Promise<numbe
   );
   return gradingResult.rows[0].grading_id;
 }
-
 
 export async function ensureFeedbackExists(pool: Pool, feedbackIds: number[]) {
   const resultIds: FeedbackIds = {
@@ -429,7 +426,6 @@ export async function fetchFormDetails(
 
   const details = await pool.query<FormDetails>(query, [form_id, version_id]);
   return details.rows.length ? details.rows[0] : null;
-
 }
 export const getSpecificFormResponse = async (req: Request, res: Response) => {
   const { form_id, response_id } = req.params;
@@ -489,7 +485,6 @@ export async function handleVersionConflict(
   ).rows[0].revision_id;
   return currentActiveRevisionId !== old_revision_id;
 }
-
 
 export const incrementVersion = (currentVersion: string) => {
   const versionParts = currentVersion.substring(1).split(".");

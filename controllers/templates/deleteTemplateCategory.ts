@@ -1,31 +1,29 @@
 /* eslint-disable @typescript-eslint/no-misused-promises */
 import { Router, Response, NextFunction } from "express";
 import { AuthRequest, authenticateUser } from "../../middleware/auth";
+import { checkSuperAdmin } from "../../utils/checkSuperAdmin";
 import { pool } from "../../config/db";
 
 const router = Router();
 
-router.post(
-  "/categories",
+// Delete Template Category
+router.delete(
+  "/categories/:id",
   authenticateUser,
+  checkSuperAdmin,
   async (req: AuthRequest, res: Response, next: NextFunction) => {
-    const { name, description } = req.body as {
-      name: string;
-      description: string;
-    };
-
+    const { id } = req.params;
     try {
       await pool.query("BEGIN");
-      const result = await pool.query<{ category_id: number }>(
-        "INSERT INTO template_categories (name, description) VALUES ($1, $2) RETURNING category_id",
-        [name, description]
+      await pool.query<{ category_id: number }>(
+        "DELETE FROM template_categories WHERE category_id = $1 RETURNING category_id",
+        [id]
       );
-
       await pool.query("COMMIT");
 
-      res.status(201).json({
-        message: "Category created successfully.",
-        category_id: result.rows[0].category_id,
+      res.status(200).json({
+        success: true,
+        message: "Category deleted successfully.",
       });
     } catch (error) {
       await pool.query("ROLLBACK");
