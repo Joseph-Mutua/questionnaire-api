@@ -64,12 +64,15 @@ CREATE TABLE IF NOT EXISTS form_settings (
     FOREIGN KEY (quiz_settings_id) REFERENCES quiz_settings(quiz_settings_id)
 );
 
--- Core table for forms
+-- Combined Forms and Templates Table
 CREATE TABLE IF NOT EXISTS forms (
     form_id SERIAL PRIMARY KEY,
     owner_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     info_id INTEGER NOT NULL REFERENCES form_info(info_id),
     settings_id INTEGER REFERENCES form_settings(settings_id),
+    category_id INTEGER REFERENCES template_categories(category_id), -- Nullable for non-templates
+    is_template BOOLEAN DEFAULT FALSE, -- Indicates if the form is a template
+    is_public BOOLEAN DEFAULT TRUE, -- Only used for templates
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -132,29 +135,46 @@ BEGIN
     END IF; 
 END $$;
 
--- Sections: manage different sections in the form
--- Sections: manage different sections in the form
+-- Create the new combined sections table
 CREATE TABLE IF NOT EXISTS sections (
     section_id SERIAL PRIMARY KEY,
     form_id INTEGER,
-    template_id INTEGER,
     title VARCHAR NOT NULL,
     description TEXT,
     seq_order INTEGER,
-    UNIQUE(form_id, seq_order),
-    UNIQUE(template_id, seq_order),
-    FOREIGN KEY (form_id) REFERENCES forms(form_id),
-    FOREIGN KEY (template_id) REFERENCES templates(template_id)
+    is_template BOOLEAN DEFAULT FALSE,
+    UNIQUE(form_id, seq_order, is_template),
+    FOREIGN KEY (form_id) REFERENCES forms(form_id)
 );
 
---unique indexes to ensure unique seq_order for form_id and template_id
-CREATE UNIQUE INDEX sections_form_id_seq_order_idx
-ON sections (form_id, seq_order)
-WHERE template_id IS NULL;
+-- Create a unique index for form_id and seq_order where is_template is false
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_indexes
+        WHERE indexname = 'sections_form_id_seq_order_idx'
+    ) THEN
+        CREATE UNIQUE INDEX sections_form_id_seq_order_idx
+        ON sections (form_id, seq_order)
+        WHERE is_template = FALSE;
+    END IF;
+END $$;
 
-CREATE UNIQUE INDEX sections_template_id_seq_order_idx
-ON sections (template_id, seq_order)
-WHERE form_id IS NULL;
+-- Create a unique index for form_id and seq_order where is_template is true
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_indexes
+        WHERE indexname = 'sections_template_id_seq_order_idx'
+    ) THEN
+        CREATE UNIQUE INDEX sections_template_id_seq_order_idx
+        ON sections (form_id, seq_order)
+        WHERE is_template = TRUE;
+    END IF;
+END $$;
+
 
 CREATE TABLE IF NOT EXISTS items (
     item_id SERIAL PRIMARY KEY,
@@ -265,15 +285,3 @@ CREATE TABLE IF NOT EXISTS template_categories (
     description TEXT
 );
 
--- Templates table to store form templates
-CREATE TABLE IF NOT EXISTS templates (
-    template_id SERIAL PRIMARY KEY,
-    category_id INTEGER NOT NULL,
-    owner_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
-    info_id INTEGER NOT NULL REFERENCES form_info(info_id),
-    settings_id INTEGER REFERENCES form_settings(settings_id),
-    is_public BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (category_id) REFERENCES template_categories(category_id)
-);

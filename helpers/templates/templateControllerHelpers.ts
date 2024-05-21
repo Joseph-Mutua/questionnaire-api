@@ -17,3 +17,5 @@ export async function fetchTemplateDetails(
   const details = await pool.query<{ template_id: number }>(query, [template_id]);
   return details.rows.length ? details.rows[0] : null;
 }
+
+

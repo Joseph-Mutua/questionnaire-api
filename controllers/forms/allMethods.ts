@@ -398,6 +398,7 @@ router.get(
   }
 );
 
+
 // Update form
 router.patch(
   "/:id",
@@ -461,12 +462,12 @@ router.patch(
         );
       }
 
-      await updateOrCreateSettings(pool, settings, form_id);
+      await updateOrCreateSettings(pool, settings, form_id, true);
 
       for (const section of sections) {
-        const section_id = await handleSection(pool, form_id, section);
+        const section_id = await handleSection(pool, form_id, section, true);
         for (const item of section.items) {
-          await handleItem(pool, form_id, section_id, item);
+          await handleItem(pool, form_id, section_id, item, true);
         }
       }
 
@@ -512,6 +513,7 @@ router.patch(
     }
   }
 );
+
 
 // DELETE a specific form response by response_id
 router.delete(
