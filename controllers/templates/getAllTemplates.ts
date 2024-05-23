@@ -4,26 +4,24 @@ import { pool } from "../../config/db";
 
 const router = Router();
 
-//Get all templates
+// Get all templates
 
-router.get(
-  "/",
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const result = await pool.query(`
-        SELECT t.template_id, t.is_public, t.created_at, t.updated_at,
+router.get("/", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await pool.query(`
+        SELECT f.form_id AS template_id, f.is_public, f.created_at, f.updated_at,
                tc.name AS category_name, u.email AS owner_email, fi.title, fi.description
-        FROM templates t
-        JOIN template_categories tc ON t.category_id = tc.category_id
-        JOIN users u ON t.owner_id = u.user_id
-        JOIN form_info fi ON t.info_id = fi.info_id
+        FROM forms f
+        JOIN template_categories tc ON f.category_id = tc.category_id
+        JOIN users u ON f.owner_id = u.user_id
+        JOIN form_info fi ON f.info_id = fi.info_id
+        WHERE f.is_template = TRUE
       `);
 
-      res.status(200).json(result.rows);
-    } catch (error) {
-      next(error);
-    }
+    res.status(200).json(result.rows);
+  } catch (error) {
+    next(error);
   }
-);
+});
 
 export default router;

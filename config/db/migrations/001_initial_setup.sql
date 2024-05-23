@@ -135,7 +135,7 @@ BEGIN
     END IF; 
 END $$;
 
--- Create the new combined sections table
+-- combined sections table(forms/templates)
 CREATE TABLE IF NOT EXISTS sections (
     section_id SERIAL PRIMARY KEY,
     form_id INTEGER,
@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS sections (
     FOREIGN KEY (form_id) REFERENCES forms(form_id)
 );
 
--- Create a unique index for form_id and seq_order where is_template is false
+-- unique index for form_id and seq_order where is_template is false
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -161,7 +161,7 @@ BEGIN
     END IF;
 END $$;
 
--- Create a unique index for form_id and seq_order where is_template is true
+-- unique index for form_id and seq_order where is_template is true
 DO $$
 BEGIN
     IF NOT EXISTS (
