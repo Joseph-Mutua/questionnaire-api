@@ -1,4 +1,4 @@
--- Users who can create/share forms
+-- Users who can create/share forms/templates
 CREATE TABLE IF NOT EXISTS users (
     user_id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -64,27 +64,38 @@ CREATE TABLE IF NOT EXISTS form_settings (
     FOREIGN KEY (quiz_settings_id) REFERENCES quiz_settings(quiz_settings_id)
 );
 
--- Core table for forms
+-- Combined Forms and Templates Table
 CREATE TABLE IF NOT EXISTS forms (
     form_id SERIAL PRIMARY KEY,
     owner_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     info_id INTEGER NOT NULL REFERENCES form_info(info_id),
     settings_id INTEGER REFERENCES form_settings(settings_id),
+    category_id INTEGER REFERENCES template_categories(category_id), -- Nullable for non-templates
+    is_template BOOLEAN DEFAULT FALSE, -- Indicates if the form is a template
+    is_public BOOLEAN DEFAULT TRUE, -- Only used for templates
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 
--- Roles definition
+-- roles definition
 CREATE TABLE IF NOT EXISTS roles (
     role_id SERIAL PRIMARY KEY,
-    name VARCHAR(255) UNIQUE NOT NULL CHECK (name IN ('Owner', 'Editor', 'Viewer'))
+    name VARCHAR(255) UNIQUE NOT NULL CHECK (name IN ('Owner', 'Editor', 'Viewer', 'SuperAdmin'))
 );
 
 
-INSERT INTO roles (name) VALUES ('Owner'), ('Editor'), ('Viewer')
+INSERT INTO roles (name) VALUES ('Owner'), ('Editor'), ('Viewer'), ('SuperAdmin')
 ON CONFLICT (name) DO NOTHING;
 
+
+CREATE TABLE IF NOT EXISTS user_roles (
+    user_id INTEGER NOT NULL,
+    role_id INTEGER NOT NULL,
+    PRIMARY KEY (user_id, role_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (role_id) REFERENCES roles(role_id)
+);
 
 -- User roles in relation to forms
 CREATE TABLE IF NOT EXISTS form_user_roles (
@@ -124,16 +135,46 @@ BEGIN
     END IF; 
 END $$;
 
--- Sections: manage different sections in the form
+-- combined sections table(forms/templates)
 CREATE TABLE IF NOT EXISTS sections (
     section_id SERIAL PRIMARY KEY,
-    form_id INTEGER NOT NULL,
+    form_id INTEGER,
     title VARCHAR NOT NULL,
     description TEXT,
     seq_order INTEGER,
-    UNIQUE(form_id, seq_order),  -- 'seq_order' is unique per form
+    is_template BOOLEAN DEFAULT FALSE,
+    UNIQUE(form_id, seq_order, is_template),
     FOREIGN KEY (form_id) REFERENCES forms(form_id)
 );
+
+-- unique index for form_id and seq_order where is_template is false
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_indexes
+        WHERE indexname = 'sections_form_id_seq_order_idx'
+    ) THEN
+        CREATE UNIQUE INDEX sections_form_id_seq_order_idx
+        ON sections (form_id, seq_order)
+        WHERE is_template = FALSE;
+    END IF;
+END $$;
+
+-- unique index for form_id and seq_order where is_template is true
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_indexes
+        WHERE indexname = 'sections_template_id_seq_order_idx'
+    ) THEN
+        CREATE UNIQUE INDEX sections_template_id_seq_order_idx
+        ON sections (form_id, seq_order)
+        WHERE is_template = TRUE;
+    END IF;
+END $$;
+
 
 CREATE TABLE IF NOT EXISTS items (
     item_id SERIAL PRIMARY KEY,
@@ -235,5 +276,12 @@ CREATE TABLE IF NOT EXISTS navigation_rules (
     condition TEXT,  -- JSON to define conditions based on answers
     FOREIGN KEY (section_id) REFERENCES sections(section_id),
     FOREIGN KEY (target_section_id) REFERENCES sections(section_id)
+);
+
+-- Template Categories for organizing templates
+CREATE TABLE IF NOT EXISTS template_categories (
+    category_id SERIAL PRIMARY KEY,
+    name VARCHAR NOT NULL UNIQUE,
+    description TEXT
 );
 

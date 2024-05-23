@@ -1,16 +1,15 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
 import { Router, Request, Response } from "express";
 import { generateToken } from "../../helpers/forms/formControllerHelpers";
 import { pool } from "../../config/db";
 import bcrypt from "bcryptjs";
 import HttpError from "../../utils/httpError";
+import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
-
 router.post(
   "/login",
-    async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const { email, password } = req.body as {
       email: string;
       password: string;
@@ -36,9 +35,8 @@ router.post(
     }
 
     const token = generateToken(String(user.user_id));
-    res.send({ user: { userId: user.user_id, email }, token });
-  }
+    res.send({ user: { user_id: user.user_id, email }, token });
+  })
 );
-
 
 export default router;

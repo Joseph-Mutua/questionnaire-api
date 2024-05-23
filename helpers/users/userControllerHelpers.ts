@@ -53,7 +53,7 @@ export async function inviteUser(
   );
 
   const role_id = roleResult.rows[0].role_id;
-  
+
   await assignRole(user_id, form_id, role_id);
 
   const templateData: EmailTemplateData = {

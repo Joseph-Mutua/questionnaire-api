@@ -1,17 +1,16 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
-
-import { Router, Response, Request } from "express";
+import { Router, Response, Request, NextFunction } from "express";
 import { getSpecificFormResponse } from "../../helpers/forms/formControllerHelpers";
 import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
 import jwt from "jsonwebtoken";
+import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
 //Get response by token
 router.get(
   "/:form_id/responses/:responseId/token",
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { response_token } = req.query as { response_token: string };
 
     if (!response_token) {
@@ -25,16 +24,24 @@ router.get(
       form_id: number;
     };
 
-    const validationResult = await pool.query(
-      "SELECT response_id FROM form_responses WHERE response_id = $1 AND form_id = $2 AND response_token = $3",
-      [decoded.response_id, decoded.form_id, response_token]
-    );
+    try {
+      await pool.query("BEGIN");
+      const validationResult = await pool.query(
+        "SELECT response_id FROM form_responses WHERE response_id = $1 AND form_id = $2 AND response_token = $3",
+        [decoded.response_id, decoded.form_id, response_token]
+      );
 
-    if (validationResult.rows.length === 0) {
-      throw new HttpError("Invalid or expired token", 401);
+      if (validationResult.rows.length === 0) {
+        throw new HttpError("Invalid or expired token", 401);
+      }
+      await getSpecificFormResponse(req, res);
+
+      await pool.query("COMMIT");
+    } catch (error) {
+      await pool.query("ROLLBACK");
+      next(error);
     }
-    await getSpecificFormResponse(req, res);
-  }
+  })
 );
 
 export default router;

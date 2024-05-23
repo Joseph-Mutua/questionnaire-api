@@ -3,13 +3,13 @@ import { Router, Request, Response } from "express";
 import { generateToken } from "../../helpers/forms/formControllerHelpers";
 import { pool } from "../../config/db";
 import bcrypt from "bcryptjs";
+import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
 router.post(
   "/register",
-
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const { email, password } = req.body as {
       email: string;
       password: string;
@@ -31,7 +31,7 @@ router.post(
     const user = result.rows[0];
     const token = generateToken(String(user.user_id));
     res.status(201).send({ user, token });
-  }
+  })
 );
 
 export default router;

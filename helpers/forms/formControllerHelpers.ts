@@ -22,7 +22,7 @@ export async function updateOrCreateSettings(
   let settingsId: number;
 
   const settingsExist = await pool.query<{ settings_id: number }>(
-    "SELECT settings_id FROM forms WHERE form_id = $1",
+    `SELECT settings_id FROM forms WHERE form_id = $1`,
     [form_id]
   );
 
@@ -72,7 +72,7 @@ export async function updateOrCreateSettings(
     );
     settingsId = formSettingsResult.rows[0].settings_id;
 
-    await pool.query("UPDATE forms SET settings_id = $1 WHERE form_id = $2", [
+    await pool.query(`UPDATE forms SET settings_id = $1 WHERE form_id = $2`, [
       settingsId,
       form_id,
     ]);
@@ -83,29 +83,45 @@ export async function updateOrCreateSettings(
 export async function handleSection(
   pool: Pool,
   form_id: number,
-  section: Section
+  section: Section,
+  is_template: boolean
 ) {
   const sectionResult = await pool.query<{ section_id: number }>(
-    "INSERT INTO sections (form_id, title, description, seq_order) VALUES ($1, $2, $3, $4) ON CONFLICT (form_id, seq_order) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description RETURNING section_id",
-    [form_id, section.title, section.description, section.seq_order]
+    `INSERT INTO sections (form_id, title, description, seq_order, is_template) 
+     VALUES ($1, $2, $3, $4, $5) 
+     ON CONFLICT (form_id, seq_order, is_template) 
+     DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description 
+     RETURNING section_id`,
+    [
+      form_id,
+      section.title,
+      section.description,
+      section.seq_order,
+      is_template,
+    ]
   );
   return sectionResult.rows[0].section_id;
 }
 export async function handleItem(
   pool: Pool,
-  form_id: number,
+  id: number,
   section_id: number,
-  item: Item
+  item: Item,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  isForm: boolean
 ) {
+  const idField = "form_id";
+
   const itemResult = await pool.query<{ item_id: number }>(
-    `INSERT INTO items (form_id, section_id, title, description, kind) 
+    `INSERT INTO items (${idField}, section_id, title, description, kind) 
      VALUES ($1, $2, $3, $4, $5) 
-     ON CONFLICT (form_id, title) DO UPDATE SET
+     ON CONFLICT (${idField}, title) 
+     DO UPDATE SET
      description = EXCLUDED.description, 
      kind = EXCLUDED.kind, 
      section_id = EXCLUDED.section_id 
      RETURNING item_id`,
-    [form_id, section_id, item.title, item.description, item.kind]
+    [id, section_id, item.title, item.description, item.kind]
   );
 
   const item_id = itemResult.rows[0].item_id;
@@ -166,6 +182,7 @@ export async function handleQuestion(
 
   return question_id;
 }
+
 export async function handleChoiceQuestion(
   pool: Pool,
   question: Question,
@@ -174,7 +191,10 @@ export async function handleChoiceQuestion(
   await pool.query(`DELETE FROM options WHERE question_id = $1`, [question_id]);
 
   await pool.query(
-    `INSERT INTO choice_questions (question_id, type, shuffle) VALUES ($1, $2, $3) ON CONFLICT (question_id) DO UPDATE SET type = EXCLUDED.type, shuffle = EXCLUDED.shuffle`,
+    `INSERT INTO choice_questions (question_id, type, shuffle) 
+     VALUES ($1, $2, $3) 
+     ON CONFLICT (question_id) 
+     DO UPDATE SET type = EXCLUDED.type, shuffle = EXCLUDED.shuffle`,
     [question_id, question.options?.type, question.options?.shuffle]
   );
 
@@ -196,7 +216,6 @@ export async function handleChoiceQuestion(
     );
   }
 }
-
 export async function validateImageId(pool: Pool, image_id: number) {
   if (image_id === null || image_id === undefined) {
     return null;
@@ -270,6 +289,8 @@ export async function ensureFeedbackExists(pool: Pool, feedbackIds: number[]) {
   return resultIds;
 }
 
+
+
 export async function sendSubmissionConfirmation(
   recipientEmail: string,
   responseId: number,
@@ -320,7 +341,7 @@ export async function sendNewResponseAlert(
   }
 
   const responseLink = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/${form_id}/responses/${responseId}/token?response_token=${responseToken}`;
-  
+
   const submissionDetails = await pool.query<{ title: string }>(
     "SELECT title FROM form_info WHERE info_id IN (SELECT info_id FROM forms WHERE form_id = $1)",
     [form_id]
@@ -349,6 +370,8 @@ export async function getFormOwnerEmail(
   );
   return result.rows[0]?.email ?? null;
 }
+
+
 export async function fetchFormDetails(
   pool: Pool,
   form_id: number,
@@ -356,8 +379,13 @@ export async function fetchFormDetails(
 ): Promise<FormDetails | null> {
   const query = `
     SELECT 
-        f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz,
-        fs.quiz_settings_id, fs.update_window_hours, fs.wants_email_updates, fv.revision_id,
+        f.form_id, fi.title, fi.description, 
+        json_build_object(
+            'is_quiz', COALESCE(qs.is_quiz, false),
+            'update_window_hours', COALESCE(fs.update_window_hours, 24),
+            'wants_email_updates', COALESCE(fs.wants_email_updates, false)
+        ) as settings,
+        fv.revision_id,
         json_agg(json_build_object(
             'section_id', s.section_id, 
             'title', s.title, 
@@ -397,14 +425,96 @@ export async function fetchFormDetails(
     LEFT JOIN form_info fi ON f.info_id = fi.info_id
     LEFT JOIN form_settings fs ON f.settings_id = fs.settings_id
     LEFT JOIN quiz_settings qs ON fs.quiz_settings_id = qs.quiz_settings_id
-    INNER JOIN form_versions fv ON f.form_id = fv.form_id AND fv.version_id = COALESCE($2, f.active_version_id)
+    LEFT JOIN form_versions fv ON f.form_id = fv.form_id AND fv.version_id = COALESCE($2, f.active_version_id)
     LEFT JOIN sections s ON f.form_id = s.form_id
     WHERE f.form_id = $1
-    GROUP BY f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz, fs.quiz_settings_id, fs.update_window_hours, fs.wants_email_updates, fv.revision_id
+    GROUP BY f.form_id, fi.title, fi.description, fs.settings_id, qs.is_quiz, fs.update_window_hours, fs.wants_email_updates, fv.revision_id
   `;
+
   const details = await pool.query<FormDetails>(query, [form_id, version_id]);
+
   return details.rows.length ? details.rows[0] : null;
 }
+export async function fetchQuestionDetails(
+  pool: Pool,
+  item_id: number
+): Promise<Question | undefined> {
+  const questionResult = await pool.query<{
+    question_id: number;
+    required: boolean;
+    kind:
+      | "choice_question"
+      | "text_question"
+      | "scale_question"
+      | "date_question"
+      | "time_question"
+      | "file_upload_question"
+      | "row_question"; 
+    grading_id: number;
+  }>(
+    `SELECT q.question_id, q.required, q.kind, q.grading_id
+     FROM questions q
+     JOIN question_items qi ON q.question_id = qi.question_id
+     WHERE qi.item_id = $1`,
+    [item_id]
+  );
+
+  if (questionResult.rowCount === 0) {
+    return undefined;
+  }
+
+  const question = questionResult.rows[0];
+  const gradingResult = question.grading_id
+    ? await pool.query<{
+        grading_id: number;
+        point_value: number;
+        when_right: number;
+        when_wrong: number;
+        general_feedback: number;
+        answer_key: string;
+        auto_feedback: boolean;
+      }>(
+        `SELECT grading_id, point_value, when_right, when_wrong, general_feedback, answer_key, auto_feedback
+     FROM gradings
+     WHERE grading_id = $1`,
+        [question.grading_id]
+      )
+    : undefined;
+
+  const optionsResult =
+    question.kind === "choice_question"
+      ? await pool.query<{
+          option_id: number;
+          value: string;
+          image_id: number | null;
+          is_other: boolean;
+          goto_action:
+            | "NEXT_SECTION"
+            | "RESTART_FORM"
+            | "SUBMIT_FORM"
+            | "GO_TO_ACTION_UNSPECIFIED"
+            | null;
+        }>(
+          `SELECT option_id, value, image_id, is_other, goto_action
+     FROM options
+     WHERE question_id = $1`,
+          [question.question_id]
+        )
+      : undefined;
+
+  return {
+    ...question,
+    grading: gradingResult ? gradingResult.rows[0] : undefined,
+    options: optionsResult
+      ? {
+          type: "RADIO", 
+          shuffle: false,
+          choices: optionsResult.rows,
+        }
+      : undefined,
+  };
+}
+
 export const getSpecificFormResponse = async (req: Request, res: Response) => {
   const { form_id, response_id } = req.params;
 
@@ -430,6 +540,40 @@ export const getSpecificFormResponse = async (req: Request, res: Response) => {
   }
 };
 
+export async function checkAuthorization(
+  user_id: number,
+  form_id: number
+): Promise<boolean> {
+  const query = `
+        SELECT EXISTS (
+            SELECT 1 
+            FROM form_user_roles fur
+            JOIN roles r ON fur.role_id = r.role_id
+            WHERE fur.form_id = $1 AND fur.user_id = $2 AND r.name IN ('Owner', 'Editor')
+        )
+    `;
+
+  const result = await pool.query<{ exists: boolean }>(query, [
+    form_id,
+    user_id,
+  ]);
+  return result.rows[0].exists;
+}
+
+export async function handleVersionConflict(
+  pool: Pool,
+  form_id: number,
+  old_revision_id: string
+): Promise<boolean> {
+  const currentActiveRevisionId = (
+    await pool.query<{ revision_id: string }>(
+      "SELECT revision_id FROM form_versions WHERE form_id = $1 AND is_active = TRUE",
+      [form_id]
+    )
+  ).rows[0].revision_id;
+  return currentActiveRevisionId !== old_revision_id;
+}
+
 export const incrementVersion = (currentVersion: string) => {
   const versionParts = currentVersion.substring(1).split(".");
   let major = parseInt(versionParts[0]);
@@ -444,6 +588,6 @@ export const incrementVersion = (currentVersion: string) => {
   return `v${major}.${minor}`;
 };
 
-export const generateToken = (userId: string) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: "24h" });
+export const generateToken = (user_id: string) => {
+  return jwt.sign({ user_id }, process.env.JWT_SECRET!, { expiresIn: "24h" });
 };
