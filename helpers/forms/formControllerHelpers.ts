@@ -507,82 +507,13 @@ export async function fetchQuestionDetails(
     grading: gradingResult ? gradingResult.rows[0] : undefined,
     options: optionsResult
       ? {
-          type: "RADIO", // Assuming a default type for now
-          shuffle: false, // Assuming default value
+          type: "RADIO", 
+          shuffle: false,
           choices: optionsResult.rows,
         }
       : undefined,
   };
 }
-
-// export async function fetchQuestionDetails(
-//   pool: Pool,
-//   item_id: number
-// ): Promise<Question | undefined> {
-//   const questionResult = await pool.query<{
-//     question_id: number;
-//     required: boolean;
-//     kind: string;
-//     grading_id: number;
-//   }>(
-//     `SELECT q.question_id, q.required, q.kind, q.grading_id
-//      FROM questions q
-//      JOIN question_items qi ON q.question_id = qi.question_id
-//      WHERE qi.item_id = $1`,
-//     [item_id]
-//   );
-
-//   if (questionResult.rowCount === 0) {
-//     return undefined;
-//   }
-
-//   const question = questionResult.rows[0];
-//   const gradingResult = question.grading_id
-//     ? await pool.query<{
-//         grading_id: number;
-//         point_value: number;
-//         when_right: number;
-//         when_wrong: number;
-//         general_feedback: number;
-//         answer_key: string;
-//         auto_feedback: boolean;
-//       }>(
-//         `SELECT grading_id, point_value, when_right, when_wrong, general_feedback, answer_key, auto_feedback
-//      FROM gradings
-//      WHERE grading_id = $1`,
-//         [question.grading_id]
-//       )
-//     : undefined;
-
-//   const optionsResult =
-//     question.kind === "choice_question"
-//       ? await pool.query<{
-//           option_id: number;
-//           value: string;
-//           image_id: number | null;
-//           is_other: boolean;
-//           goto_action: string;
-//         }>(
-//           `SELECT option_id, value, image_id, is_other, goto_action
-//      FROM options
-//      WHERE question_id = $1`,
-//           [question.question_id]
-//         )
-//       : undefined;
-
-//   return {
-//     ...question,
-//     grading: gradingResult ? gradingResult.rows[0] : undefined,
-//     options: optionsResult
-//       ? {
-//           type: "RADIO", // Assuming a default type for now
-//           shuffle: false, // Assuming default value
-//           choices: optionsResult.rows,
-//         }
-//       : undefined,
-//   };
-// }
-
 
 export const getSpecificFormResponse = async (req: Request, res: Response) => {
   const { form_id, response_id } = req.params;

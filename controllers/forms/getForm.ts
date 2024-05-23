@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
 
 import { Router, Response, NextFunction } from "express";
 import { AuthRequest, authenticateUser } from "../../middleware/auth";
@@ -6,13 +5,15 @@ import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
 
 import { fetchFormDetails } from "../../helpers/forms/formControllerHelpers";
+import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
 router.get(
   "/:id",
-  authenticateUser,
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+
+  asyncHandler(authenticateUser),
+  asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
     const form_id = parseInt(req.params.id);
     if (!form_id) {
       throw new HttpError("Invalid form ID provided.", 400);
@@ -57,7 +58,7 @@ router.get(
       await pool.query("ROLLBACK");
       next(error);
     }
-  }
+  })
 );
 
 export default router;

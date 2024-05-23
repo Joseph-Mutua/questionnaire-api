@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
 import { Router, Response, NextFunction } from "express";
+
 import { AuthRequest, authenticateUser } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
@@ -10,13 +10,14 @@ import {
   incrementVersion,
   fetchQuestionDetails,
 } from "../../helpers/forms/formControllerHelpers";
+import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
 router.post(
   "/create-from-template",
-  authenticateUser,
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+  asyncHandler(authenticateUser),
+  asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
     const { template_id } = req.body as { template_id: number };
     const user_id = req.user?.user_id;
 
@@ -46,7 +47,7 @@ router.post(
         [user_id, info_id, settings_id]
       );
       const form_id = formResult.rows[0].form_id;
-      
+
       const roleIdResult = await pool.query<{ role_id: number }>(
         "SELECT role_id FROM roles WHERE name = 'Owner'"
       );
@@ -98,12 +99,14 @@ router.post(
             {
               title: item.title,
               description: item.description,
-              kind: item.kind as "question_item" |
-                "question_group_item" |
-                "page_break_item" |
-                "text_item" |
-                "image_item",
-              question: (await fetchQuestionDetails(pool, item.item_id)) ?? undefined,
+              kind: item.kind as
+                | "question_item"
+                | "question_group_item"
+                | "page_break_item"
+                | "text_item"
+                | "image_item",
+              question:
+                (await fetchQuestionDetails(pool, item.item_id)) ?? undefined,
               item_id: item.item_id,
             },
             true
@@ -138,7 +141,7 @@ router.post(
       await pool.query("ROLLBACK");
       next(error);
     }
-  }
+  })
 );
 
 export default router;

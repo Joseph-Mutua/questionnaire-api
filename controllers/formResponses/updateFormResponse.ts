@@ -5,13 +5,14 @@ import { pool } from "../../config/db";
 import { AuthRequest } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
 import { FormResponseBody } from "../../types";
+import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
 // Update form response within a permissible time window
 router.patch(
   "/:form_id/responses/:response_id",
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+  asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
     const { form_id, response_id } = req.params;
     const { answers } = req.body as FormResponseBody;
     const user_id = req.user?.user_id;
@@ -84,7 +85,7 @@ router.patch(
       await pool.query("ROLLBACK");
       next(error);
     }
-  }
+  })
 );
 
 export default router;

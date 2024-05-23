@@ -1,17 +1,20 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
 import { Router, Response, NextFunction } from "express";
 import { AuthRequest, authenticateUser } from "../../middleware/auth";
 import { checkSuperAdmin } from "../../utils/checkSuperAdmin";
 import { pool } from "../../config/db";
+import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
 // Delete Template Category
 router.delete(
   "/categories/:id",
-  authenticateUser,
-  checkSuperAdmin,
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+
+  asyncHandler(authenticateUser),
+
+  asyncHandler(checkSuperAdmin),
+
+  asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
     const { id } = req.params;
     try {
       await pool.query("BEGIN");
@@ -29,7 +32,7 @@ router.delete(
       await pool.query("ROLLBACK");
       next(error);
     }
-  }
+  })
 );
 
 export default router;

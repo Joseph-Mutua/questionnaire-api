@@ -1,23 +1,21 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
-
 import { Router, Response, Request, NextFunction } from "express";
 import { authenticateUser } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
+import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
 //Get Specific Form Response
 router.get(
   "/:form_id/responses/:responseId",
-  authenticateUser,
 
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(authenticateUser),
+  asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { form_id, responseId } = req.params;
 
     try {
-
-      await pool.query("BEGIN")
+      await pool.query("BEGIN");
       const query = `
             SELECT r.response_id, r.form_id, r.responder_email, r.create_time, r.last_submitted_time, r.total_score, 
                    json_agg(json_build_object(
@@ -43,7 +41,7 @@ router.get(
       await pool.query("ROLLBACK");
       next(error);
     }
-  }
+  })
 );
 
 export default router;

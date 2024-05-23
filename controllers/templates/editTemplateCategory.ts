@@ -1,15 +1,15 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
 import { Router, Response, NextFunction } from "express";
 import { AuthRequest, authenticateUser } from "../../middleware/auth";
 import { pool } from "../../config/db";
+import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
 // Update Template Category
 router.put(
   "/categories/:id",
-  authenticateUser,
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+  asyncHandler(authenticateUser),
+  asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
     const { id } = req.params;
     const { name, description } = req.body as {
       name: string;
@@ -30,7 +30,7 @@ router.put(
       await pool.query("ROLLBACK");
       next(error);
     }
-  }
+  })
 );
 
 export default router;

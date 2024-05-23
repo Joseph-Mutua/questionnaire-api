@@ -1,17 +1,16 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
-
 import { Router, Response, Request, NextFunction } from "express";
 import { getSpecificFormResponse } from "../../helpers/forms/formControllerHelpers";
 import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
 import jwt from "jsonwebtoken";
+import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
 //Get response by token
 router.get(
   "/:form_id/responses/:responseId/token",
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { response_token } = req.query as { response_token: string };
 
     if (!response_token) {
@@ -42,7 +41,7 @@ router.get(
       await pool.query("ROLLBACK");
       next(error);
     }
-  }
+  })
 );
 
 export default router;

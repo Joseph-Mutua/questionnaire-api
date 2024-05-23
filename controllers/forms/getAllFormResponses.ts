@@ -1,20 +1,18 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
-
 import { Router, Response, NextFunction } from "express";
 import { AuthRequest, authenticateUser } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
 
 import { FormDetailsRequestBody } from "../../types";
+import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
 //Fetch all form responses
 router.get(
   "/:form_id/responses",
-  authenticateUser,
-
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+  asyncHandler(authenticateUser),
+  asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
     const { form_id } = req.params;
     const user_id = req.user?.user_id;
 
@@ -26,8 +24,6 @@ router.get(
     }
 
     try {
-
-      
       await pool.query("BEGIN");
       const query = `
             SELECT r.response_id, r.form_id, r.responder_email, r.create_time, r.last_submitted_time, r.total_score,
@@ -58,12 +54,11 @@ router.get(
       } else {
         throw new HttpError("No responses found for this form.", 404);
       }
-
     } catch (error) {
       await pool.query("ROLLBACK");
       next(error);
     }
-  }
+  })
 );
 
 export default router;

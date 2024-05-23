@@ -10,12 +10,13 @@ const router = Router();
 
 // Generate Sharing Link for Active Form Version
 import jwt from "jsonwebtoken";
+import asyncHandler from "../../utils/asyncHandler";
 
 router.get(
   "/:form_id/share_link",
-  authenticateUser,
 
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+  asyncHandler(authenticateUser),
+  asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
     const { form_id } = req.params;
     const user_id = req.user?.user_id;
 
@@ -61,7 +62,7 @@ router.get(
       await pool.query("ROLLBACK");
       next(error);
     }
-  }
+  })
 );
 
 export default router;

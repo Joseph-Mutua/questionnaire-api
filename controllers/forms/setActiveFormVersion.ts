@@ -1,18 +1,18 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
 
 import { Router, Response, NextFunction } from "express";
 import { AuthRequest, authenticateUser } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
 import { incrementVersion } from "../../helpers/forms/formControllerHelpers";
+import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
 // Set Active Version
 router.patch(
   "/:form_id/activate_version/:version_id",
-  authenticateUser,
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+  asyncHandler(authenticateUser),
+  asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
     const { form_id, version_id } = req.params;
     const user_id = req.user?.user_id;
 
@@ -63,13 +63,11 @@ router.patch(
           "Active version updated and revision incremented successfully.",
         success: true,
       });
-
-  
     } catch (error) {
       await pool.query("ROLLBACK");
       next(error);
     }
-  }
+  })
 );
 
 export default router;

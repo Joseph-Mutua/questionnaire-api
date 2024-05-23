@@ -1,14 +1,16 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
 import { Router, Request, Response, NextFunction } from "express";
 import { pool } from "../../config/db";
+import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
 // Get all templates
 
-router.get("/", async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const result = await pool.query(`
+router.get(
+  "/",
+  asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await pool.query(`
         SELECT f.form_id AS template_id, f.is_public, f.created_at, f.updated_at,
                tc.name AS category_name, u.email AS owner_email, fi.title, fi.description
         FROM forms f
@@ -18,10 +20,11 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
         WHERE f.is_template = TRUE
       `);
 
-    res.status(200).json(result.rows);
-  } catch (error) {
-    next(error);
-  }
-});
+      res.status(200).json(result.rows);
+    } catch (error) {
+      next(error);
+    }
+  })
+);
 
 export default router;

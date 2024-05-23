@@ -1,17 +1,16 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
 import { Router, Response, NextFunction } from "express";
 import { pool } from "../../config/db";
 import { AuthRequest, authenticateUser } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
+import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
 // DELETE all responses for a specific form and revision
 router.delete(
   "/:form_id/revisions/:revision_id/responses",
-  authenticateUser,
-
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+  asyncHandler(authenticateUser),
+  asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
     const { form_id, revision_id } = req.params;
     const user_id = req.user?.user_id;
 
@@ -77,7 +76,7 @@ router.delete(
       await pool.query("ROLLBACK");
       next(error);
     }
-  }
+  })
 );
 
 export default router;

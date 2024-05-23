@@ -3,14 +3,14 @@ import { Router, Response, NextFunction } from "express";
 import { AuthRequest, authenticateUser } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
+import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
-
 router.get(
   "/my_templates",
-  authenticateUser,
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+  asyncHandler(authenticateUser),
+  asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
     const user_id = req.user?.user_id;
 
     if (!user_id) throw new HttpError("User must be logged in.", 403);
@@ -33,8 +33,7 @@ router.get(
     } catch (error) {
       next(error);
     }
-  }
+  })
 );
-
 
 export default router;

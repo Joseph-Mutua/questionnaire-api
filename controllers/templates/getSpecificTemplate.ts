@@ -1,14 +1,13 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
 import { Router, Request, Response, NextFunction } from "express";
 import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
+import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
-
 router.get(
   "/templates/:template_id/preview",
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { template_id } = req.params;
 
     try {
@@ -34,7 +33,7 @@ router.get(
     } catch (error) {
       next(error);
     }
-  }
+  })
 );
 
 export default router;
