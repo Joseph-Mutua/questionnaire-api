@@ -119,6 +119,7 @@ export async function updateFormOrTemplate(
       }
     }
 
+    
     if (!is_template) {
       const conflict = await handleVersionConflict(
         pool,

@@ -13,7 +13,7 @@ import jwt from "jsonwebtoken";
 import asyncHandler from "../../utils/asyncHandler";
 
 router.get(
-  "/:form_id/share_link",
+  "/:form_id/share-link",
 
   asyncHandler(authenticateUser),
   asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {

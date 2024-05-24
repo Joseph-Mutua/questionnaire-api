@@ -4,7 +4,6 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import "express-async-errors";
-import { connectDB } from "./config/db";
 import { runMigrations } from "./config/db/migration";
 import { Server as HTTPServer } from "http";
 import { Server as SocketServer } from "socket.io";
@@ -87,7 +86,6 @@ app.use(errorHandler);
 async function initializeApp() {
   try {
     await runMigrations();
-    await connectDB();
 
     httpServer.listen(port, () => {
       console.log(`[server]: Server is running at http://localhost:${port}`);

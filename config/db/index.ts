@@ -13,13 +13,3 @@ export const pool = new Pool({
   idleTimeoutMillis: 30000, 
   connectionTimeoutMillis: 5000,
 });
-
-export const connectDB = async () => {
-  try {
-    await pool.connect();
-    console.log("Connected to the database");
-  } catch (err) {
-    console.error("Database connection error", err);
-    process.exit(1);
-  }
-};

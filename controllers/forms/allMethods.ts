@@ -142,7 +142,7 @@ router.delete(
 
 //Generate Sharing Link
 router.get(
-  "/:form_id/share_link",
+  "/:form_id/share-link",
   authenticateUser,
 
   async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -398,7 +398,6 @@ router.get(
   }
 );
 
-
 // Update form
 router.patch(
   "/:id",
@@ -513,7 +512,6 @@ router.patch(
     }
   }
 );
-
 
 // DELETE a specific form response by response_id
 router.delete(

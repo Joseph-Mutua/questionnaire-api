@@ -1,4 +1,3 @@
-
 import { Router, Response, NextFunction } from "express";
 import { AuthRequest, authenticateUser } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
@@ -10,11 +9,11 @@ import asyncHandler from "../../utils/asyncHandler";
 const router = Router();
 
 router.get(
-  "/:id",
+  "/:form_id",
 
   asyncHandler(authenticateUser),
   asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-    const form_id = parseInt(req.params.id);
+    const form_id = parseInt(req.params.form_id);
     if (!form_id) {
       throw new HttpError("Invalid form ID provided.", 400);
     }
