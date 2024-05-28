@@ -6,9 +6,19 @@ import {
   handleSection,
   handleVersionConflict,
   incrementVersion,
+  updateOrCreateFeedback,
+  updateOrCreateMediaProperties,
+  updateOrCreateNavigationRule,
+  updateOrCreateQuizSettings,
   updateOrCreateSettings,
 } from "../helpers/forms/formControllerHelpers";
-import { QuizSettings, Section } from "../types";
+import {
+  Feedback,
+  MediaProperties,
+  NavigationRule,
+  QuizSettings,
+  Section,
+} from "../types";
 import HttpError from "../utils/httpError";
 import { io } from "../server";
 
@@ -17,14 +27,18 @@ export async function updateFormOrTemplate(
   form_id: number,
   user_id: number,
   body: {
-    title?: string;
-    description?: string;
-    is_template: boolean;
+    title: string;
+    description: string;
+    revision_id: string;
     category_id?: number;
-    is_public?: boolean;
+    is_public: boolean;
+    is_template: boolean;
     sections: Section[];
     settings: QuizSettings;
-    revision_id: string;
+    quiz_settings: QuizSettings;
+    feedbacks: Feedback[];
+    media_properties: MediaProperties;
+    navigation_rules: NavigationRule[];
   },
   res: Response,
   next: NextFunction
@@ -32,12 +46,16 @@ export async function updateFormOrTemplate(
   const {
     title,
     description,
-    is_template,
+    revision_id: old_revision_id,
     category_id,
     is_public,
+    is_template,
     sections,
     settings,
-    revision_id: old_revision_id,
+    quiz_settings,
+    feedbacks,
+    media_properties,
+    navigation_rules,
   } = body;
 
   if (!user_id) throw new HttpError("User must be logged in.", 403);
@@ -45,20 +63,19 @@ export async function updateFormOrTemplate(
 
   try {
     const roleCheckQuery = `
-      SELECT r.name
-      FROM form_user_roles fur
-      JOIN roles r ON fur.role_id = r.role_id
-      WHERE fur.form_id = $1 AND fur.user_id = $2;
+      SELECT role
+      FROM form_user_roles
+      WHERE form_id = $1 AND user_id = $2;
     `;
 
-    const roleResult = await pool.query<{ name: string }>(roleCheckQuery, [
+    const roleResult = await pool.query<{ role: string }>(roleCheckQuery, [
       form_id,
       user_id,
     ]);
 
     if (
       roleResult.rowCount === 0 ||
-      !["Owner", "Editor"].includes(roleResult.rows[0].name)
+      !["OWNER", "EDITOR"].includes(roleResult.rows[0].role)
     ) {
       throw new HttpError(
         "Unauthorized to update this form or template. Only owners and editors are permitted.",
@@ -68,44 +85,39 @@ export async function updateFormOrTemplate(
 
     await pool.query("BEGIN");
 
-    const infoResult = await pool.query<{ info_id: number }>(
-      `UPDATE form_info 
-       SET title = $1, description = $2 
-       WHERE info_id = (SELECT info_id FROM forms WHERE form_id = $3 AND owner_id = $4) 
-       RETURNING info_id`,
-      [title, description, form_id, user_id]
-    );
-
-    if (infoResult.rowCount === 0) {
-      throw new HttpError(
-        "Form or template not found or you do not have permission to update it.",
-        404
-      );
-    }
-
-    const info_id = infoResult.rows[0].info_id;
-
-    const settings_id = await updateOrCreateSettings(pool, settings, form_id);
-
     await pool.query(
       `UPDATE forms 
-       SET info_id = $1, 
-           settings_id = $2, 
+       SET title = $1, 
+           description = $2, 
            is_template = $3, 
            category_id = $4, 
            is_public = $5, 
            updated_at = CURRENT_TIMESTAMP 
        WHERE form_id = $6 AND owner_id = $7`,
       [
-        info_id,
-        settings_id,
+        title,
+        description,
         is_template,
-        category_id,
+        category_id || null,
         is_public,
         form_id,
         user_id,
       ]
     );
+
+    await updateOrCreateQuizSettings(pool, quiz_settings, form_id);
+    await updateOrCreateSettings(pool, settings, form_id);
+
+    for (const feedback of feedbacks) {
+      await updateOrCreateFeedback(pool, feedback);
+    }
+
+    const mediaPropertiesId = await updateOrCreateMediaProperties(
+      pool,
+      media_properties
+    );
+
+    const sectionIdMap = new Map<number, number>();
 
     for (const section of sections) {
       const section_id = await handleSection(
@@ -114,12 +126,26 @@ export async function updateFormOrTemplate(
         section,
         is_template
       );
+      sectionIdMap.set(section.seq_order, section_id);
       for (const item of section.items) {
         await handleItem(pool, form_id, section_id, item, !is_template);
       }
     }
 
-    
+    for (const rule of navigation_rules) {
+      const section_id = sectionIdMap.get(rule.section_id);
+      const target_section_id = sectionIdMap.get(rule.target_section_id);
+      if (section_id && target_section_id) {
+        await updateOrCreateNavigationRule(pool, {
+          ...rule,
+          section_id,
+          target_section_id,
+        });
+      } else {
+        throw new HttpError("Section ID not found for navigation rule.", 400);
+      }
+    }
+
     if (!is_template) {
       const conflict = await handleVersionConflict(
         pool,
@@ -149,7 +175,7 @@ export async function updateFormOrTemplate(
       );
 
       const versionResult = await pool.query<{ version_id: number }>(
-        "INSERT INTO form_versions(form_id, revision_id, content, is_active) VALUES($1, $2, $3::jsonb, TRUE) RETURNING version_id",
+        "INSERT INTO form_versions (form_id, revision_id, content, is_active) VALUES ($1, $2, $3::jsonb, TRUE) RETURNING version_id",
         [form_id, newRevisionId, JSON.stringify(body)]
       );
 

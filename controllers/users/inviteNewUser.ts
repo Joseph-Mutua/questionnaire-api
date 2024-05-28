@@ -9,16 +9,18 @@ router.post(
   asyncHandler(authenticateUser),
   asyncHandler(isOwner),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { email, form_id, role_name } = req.body as {
+    const { email, form_id, role } = req.body as {
       email: string;
       form_id: number;
-      role_name: string;
+      role: string;
     };
 
-    await inviteUser(email, form_id, role_name);
+    await inviteUser(email, form_id, role);
     res
       .status(200)
       .send({ message: "Invitation sent successfully.", success: true });
+
+      
   })
 );
 

@@ -16,52 +16,45 @@ export const createFormOrTemplate = async (
   formDetails: CreateFormDetails,
   isTemplate: boolean
 ) => {
-  const { title, description, is_template, category_id, is_public } =
-    formDetails;
+  const { title, description, category_id, is_public } = formDetails;
 
   if (!user_id) throw new HttpError("User must be logged in.", 403);
 
   await pool.query("BEGIN");
   try {
-    const infoResult = await pool.query<{ info_id: number }>(
-      "INSERT INTO form_info(title, description) VALUES($1, $2) RETURNING info_id",
-      [title, description]
-    );
-    const info_id = infoResult.rows[0].info_id;
-
     const formResult = await pool.query<{ form_id: number }>(
-      "INSERT INTO forms(owner_id, info_id, is_template, category_id, is_public) VALUES($1, $2, $3, $4, $5) RETURNING form_id",
+      `INSERT INTO forms (owner_id, title, description, is_template, category_id, is_public) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
+       RETURNING form_id`,
       [
         user_id,
-        info_id,
-        is_template ?? false,
+        title,
+        description,
+        isTemplate ?? false,
         category_id ?? null,
         is_public ?? true,
       ]
     );
     const form_id = formResult.rows[0].form_id;
 
-    const roleIdResult = await pool.query<{ role_id: number }>(
-      "SELECT role_id FROM roles WHERE name = 'Owner'"
-    );
-    const ownerRoleId = roleIdResult.rows[0].role_id;
+    const ownerRole = "OWNER";
 
     const formUserRoleExist = await pool.query(
-      "SELECT * FROM form_user_roles WHERE form_id = $1 AND user_id = $2 AND role_id = $3",
-      [form_id, user_id, ownerRoleId]
+      "SELECT * FROM form_user_roles WHERE form_id = $1 AND user_id = $2 AND role = $3",
+      [form_id, user_id, ownerRole]
     );
 
     if (formUserRoleExist.rows.length === 0) {
       await pool.query(
-        "INSERT INTO form_user_roles(form_id, user_id, role_id) VALUES ($1, $2, $3)",
-        [form_id, user_id, ownerRoleId]
+        "INSERT INTO form_user_roles (form_id, user_id, role) VALUES ($1, $2, $3)",
+        [form_id, user_id, ownerRole]
       );
     }
 
     if (!isTemplate) {
       const versionResult = await pool.query<{ version_id: number }>(
-        "INSERT INTO form_versions(form_id, revision_id, content, is_active) VALUES($1, 'v1.0', $2::jsonb, TRUE) RETURNING version_id",
-        [form_id, formDetails]
+        "INSERT INTO form_versions (form_id, revision_id, content, is_active) VALUES ($1, 'v1.0', $2::jsonb, TRUE) RETURNING version_id",
+        [form_id, JSON.stringify(formDetails)]
       );
       const version_id = versionResult.rows[0].version_id;
 

@@ -100,11 +100,11 @@ router.post(
               title: item.title,
               description: item.description,
               kind: item.kind as
-                | "question_item"
-                | "question_group_item"
-                | "page_break_item"
-                | "text_item"
-                | "image_item",
+                | "QUESTION_ITEM"
+                | "QUESTION_GROUP_ITEM"
+                | "PAGE_BREAK_ITEM"
+                | "TEXT_ITEM"
+                | "IMAGE_ITEM",
               question:
                 (await fetchQuestionDetails(pool, item.item_id)) ?? undefined,
               item_id: item.item_id,

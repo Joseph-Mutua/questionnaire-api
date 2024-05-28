@@ -4,12 +4,10 @@ import { pool } from "../../config/db";
 import { createFormOrTemplate } from "../../helpers/createFormOrTemplate";
 import asyncHandler from '../../utils/asyncHandler';
 
-const router = Router();
-router.post(
+const router = Router();router.post(
   "/",
   asyncHandler(authenticateUser),
-  asyncHandler(
-    async (req: AuthRequest, res: Response, next: NextFunction) => {
+  asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
     const user_id = req.user?.user_id;
 
     const { title, description } = req.body as {
