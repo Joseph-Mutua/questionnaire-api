@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS gradings (
 CREATE TABLE IF NOT EXISTS form_settings (
     settings_id SERIAL PRIMARY KEY,
     quiz_settings_id INTEGER,  -- Reference to specific quiz settings if applicable
-    update_window_hours INTEGER DEFAULT 24,  -- Time window for updating responses
+    update_window_hours INTEGER DEFAULT 0,  -- Time window for updating responses
     wants_email_updates BOOLEAN DEFAULT FALSE,  -- Whether updates should trigger emails
     FOREIGN KEY (quiz_settings_id) REFERENCES quiz_settings(quiz_settings_id)
 );
@@ -249,7 +249,7 @@ CREATE TABLE IF NOT EXISTS form_responses (
     version_id INTEGER,
     responder_email VARCHAR(255),  -- To store respondent's email if collected
     response_token VARCHAR UNIQUE,
-    create_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_submitted_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     total_score INTEGER DEFAULT 0,  -- Total score for quiz responses
     FOREIGN KEY (form_id) REFERENCES forms(form_id),
