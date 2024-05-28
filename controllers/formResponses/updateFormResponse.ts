@@ -21,14 +21,14 @@ router.patch(
       await pool.query("BEGIN");
 
       const permissionCheckQuery = `
-        SELECT fr.response_id, fr.create_time, fs.update_window_hours
+        SELECT fr.response_id, fr.created_at, fs.update_window_hours
         FROM form_responses fr
         JOIN forms f ON f.form_id = fr.form_id
         JOIN form_settings fs ON fs.settings_id = f.settings_id
         WHERE fr.form_id = $1 AND fr.response_id = $2 AND f.owner_id = $3;
       `;
       const permissionResult = await pool.query<{
-        create_time: string;
+        created_at: string;
         update_window_hours: number;
       }>(permissionCheckQuery, [form_id, response_id, user_id]);
 
@@ -39,9 +39,9 @@ router.patch(
         );
       }
 
-      const { create_time, update_window_hours } = permissionResult.rows[0];
+      const { created_at, update_window_hours } = permissionResult.rows[0];
       const currentTime = new Date();
-      const responseCreateTime = new Date(create_time);
+      const responseCreateTime = new Date(created_at);
       const expiryTime = new Date(
         responseCreateTime.getTime() + update_window_hours * 3600000
       );

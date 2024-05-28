@@ -250,7 +250,7 @@ CREATE TABLE IF NOT EXISTS form_responses (
     responder_email VARCHAR(255),  -- To store respondent's email if collected
     response_token VARCHAR UNIQUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    last_submitted_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     total_score INTEGER DEFAULT 0,  -- Total score for quiz responses
     FOREIGN KEY (form_id) REFERENCES forms(form_id),
     FOREIGN KEY (version_id) REFERENCES form_versions(version_id)

@@ -17,7 +17,7 @@ router.get(
     try {
       await pool.query("BEGIN");
       const query = `
-            SELECT r.response_id, r.form_id, r.responder_email, r.create_time, r.last_submitted_time, r.total_score, 
+            SELECT r.response_id, r.form_id, r.responder_email, r.created_at, r.updated_at, r.total_score, 
                    json_agg(json_build_object(
                        'questionId', a.question_id,
                        'value', a.value,

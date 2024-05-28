@@ -289,8 +289,6 @@ export async function ensureFeedbackExists(pool: Pool, feedbackIds: number[]) {
   return resultIds;
 }
 
-
-
 export async function sendSubmissionConfirmation(
   recipientEmail: string,
   responseId: number,
@@ -371,7 +369,6 @@ export async function getFormOwnerEmail(
   return result.rows[0]?.email ?? null;
 }
 
-
 export async function fetchFormDetails(
   pool: Pool,
   form_id: number,
@@ -449,7 +446,7 @@ export async function fetchQuestionDetails(
       | "date_question"
       | "time_question"
       | "file_upload_question"
-      | "row_question"; 
+      | "row_question";
     grading_id: number;
   }>(
     `SELECT q.question_id, q.required, q.kind, q.grading_id
@@ -507,7 +504,7 @@ export async function fetchQuestionDetails(
     grading: gradingResult ? gradingResult.rows[0] : undefined,
     options: optionsResult
       ? {
-          type: "RADIO", 
+          type: "RADIO",
           shuffle: false,
           choices: optionsResult.rows,
         }
@@ -519,7 +516,7 @@ export const getSpecificFormResponse = async (req: Request, res: Response) => {
   const { form_id, response_id } = req.params;
 
   const query = `
-            SELECT r.response_id, r.form_id, r.responder_email, r.create_time, r.last_submitted_time, r.total_score, 
+            SELECT r.response_id, r.form_id, r.responder_email, r.created_at, r.updated_at, r.total_score, 
                    json_agg(json_build_object(
                        'questionId', a.question_id,
                        'value', a.value,
