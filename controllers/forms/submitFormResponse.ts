@@ -1,4 +1,3 @@
-
 import { Router, Response, Request, NextFunction } from "express";
 import { pool } from "../../config/db";
 import jwt from "jsonwebtoken";
@@ -40,7 +39,7 @@ router.post(
       }
 
       const insertResponseQuery = `
-        INSERT INTO form_responses (form_id, version_id, responder_email, create_time, last_submitted_time, total_score)
+        INSERT INTO form_responses (form_id, version_id, responder_email, created_at, updated_at, total_score)
         VALUES ($1, $2, $3, NOW(), NOW(), 0)
         RETURNING response_id;
       `;
@@ -123,7 +122,5 @@ router.post(
     }
   })
 );
-
-
 
 export default router;
