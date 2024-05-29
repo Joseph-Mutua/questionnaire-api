@@ -10,122 +10,37 @@ import {
   MediaProperties,
   NavigationRule,
   Question,
-  QuizSettings,
   Section,
 } from "../../types";
 import { loadEmailTemplate, sendEmail } from "../../utils/Mailer";
 import { pool } from "../../config/db";
 import HttpError from "../../utils/httpError";
 
+
 export async function updateOrCreateSettings(
   pool: Pool,
-  settings: QuizSettings,
-  form_id: number
-): Promise<number> {
-  let quizSettingsId: number | null = null;
-
-  const formExist = await pool.query<{ quiz_settings_id: number }>(
-    `SELECT quiz_settings_id FROM forms WHERE form_id = $1`,
-    [form_id]
-  );
-
-  if (formExist.rows.length > 0) {
-    quizSettingsId = formExist.rows[0].quiz_settings_id;
-
-    if (settings.hasOwnProperty("is_quiz")) {
-      const updateQuizSettingsQuery = `
-        UPDATE quiz_settings
-        SET is_quiz = $1
-        WHERE quiz_settings_id = $2
-        RETURNING quiz_settings_id`;
-      await pool.query(updateQuizSettingsQuery, [
-        settings.is_quiz,
-        quizSettingsId,
-      ]);
-    }
-
-    if (
-      settings.update_window_hours !== undefined &&
-      settings.wants_email_updates !== undefined
-    ) {
-      const updateSettingsQuery = `
-        UPDATE forms
-        SET update_window_hours = $1, wants_email_updates = $2
-        WHERE form_id = $3`;
-      await pool.query(updateSettingsQuery, [
-        settings.update_window_hours,
-        settings.wants_email_updates,
-        form_id,
-      ]);
-    }
-  } else {
-    if (settings.hasOwnProperty("is_quiz")) {
-      const quizSettingsResult = await pool.query<{ quiz_settings_id: number }>(
-        "INSERT INTO quiz_settings (is_quiz) VALUES ($1) RETURNING quiz_settings_id",
-        [settings.is_quiz]
-      );
-      quizSettingsId = quizSettingsResult.rows[0].quiz_settings_id;
-    }
-
-    await pool.query(
-      "UPDATE forms SET quiz_settings_id = $1, update_window_hours = $2, wants_email_updates = $3 WHERE form_id = $4",
-      [
-        quizSettingsId,
-        settings.update_window_hours || 24,
-        settings.wants_email_updates || false,
-        form_id,
-      ]
-    );
-  }
-
-  return quizSettingsId!;
-}
-
-
-
-export async function updateOrCreateQuizSettings(
-  pool: Pool,
-  quizSettings: QuizSettings,
+  settings: {
+    update_window_hours: number;
+    wants_email_updates: boolean;
+    is_quiz: boolean;
+  },
   form_id: number
 ) {
-  let quizSettingsId: number | null = null;
-
-  const formExist = await pool.query<{ quiz_settings_id: number }>(
-    `SELECT quiz_settings_id FROM forms WHERE form_id = $1`,
-    [form_id]
+  await pool.query(
+    `UPDATE forms
+     SET update_window_hours = $1,
+         wants_email_updates = $2,
+         is_quiz = $3
+     WHERE form_id = $4`,
+    [
+      settings.update_window_hours,
+      settings.wants_email_updates,
+      settings.is_quiz,
+      form_id,
+    ]
   );
-
-  if (formExist.rows.length > 0) {
-    quizSettingsId = formExist.rows[0].quiz_settings_id;
-
-    if (quizSettings.hasOwnProperty("is_quiz")) {
-      const updateQuizSettingsQuery = `
-        UPDATE quiz_settings
-        SET is_quiz = $1
-        WHERE quiz_settings_id = $2
-        RETURNING quiz_settings_id`;
-      await pool.query(updateQuizSettingsQuery, [
-        quizSettings.is_quiz,
-        quizSettingsId,
-      ]);
-    }
-  } else {
-    if (quizSettings.hasOwnProperty("is_quiz")) {
-      const quizSettingsResult = await pool.query<{ quiz_settings_id: number }>(
-        "INSERT INTO quiz_settings (is_quiz) VALUES ($1) RETURNING quiz_settings_id",
-        [quizSettings.is_quiz]
-      );
-      quizSettingsId = quizSettingsResult.rows[0].quiz_settings_id;
-    }
-
-    await pool.query(
-      "UPDATE forms SET quiz_settings_id = $1 WHERE form_id = $2",
-      [quizSettingsId, form_id]
-    );
-  }
-
-  return quizSettingsId!;
 }
+
 
 export async function updateOrCreateFeedback(pool: Pool, feedback: Feedback) {
   if (feedback.feedback_id) {
@@ -413,12 +328,7 @@ export async function sendNewResponseAlert(
 ) {
   const settingsResult = await pool.query<{
     wants_email_updates: boolean;
-  }>(
-    `SELECT wants_email_updates FROM form_settings WHERE settings_id = (
-      SELECT settings_id FROM forms WHERE form_id = $1
-    )`,
-    [form_id]
-  );
+  }>(`SELECT wants_email_updates FROM forms WHERE form_id = $1`, [form_id]);
 
   if (
     settingsResult.rows.length > 0 &&
@@ -437,7 +347,7 @@ export async function sendNewResponseAlert(
   const responseLink = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/${form_id}/responses/${responseId}/token?response_token=${responseToken}`;
 
   const submissionDetails = await pool.query<{ title: string }>(
-    "SELECT title FROM form_info WHERE info_id IN (SELECT info_id FROM forms WHERE form_id = $1)",
+    "SELECT title FROM forms WHERE form_id = $1",
     [form_id]
   );
   const { title } = submissionDetails.rows[0];
@@ -455,9 +365,8 @@ export async function sendNewResponseAlert(
   );
 }
 
-export async function getFormOwnerEmail(
-  form_id: number
-): Promise<string | null> {
+// Ensure the getFormOwnerEmail function exists and works correctly
+async function getFormOwnerEmail(form_id: number): Promise<string | null> {
   const result = await pool.query<{ email: string }>(
     "SELECT email FROM users WHERE user_id = (SELECT owner_id FROM forms WHERE form_id = $1)",
     [form_id]
@@ -474,7 +383,7 @@ export async function fetchFormDetails(
     SELECT 
         f.form_id, f.title, f.description, 
         json_build_object(
-            'is_quiz', COALESCE(qs.is_quiz, false),
+            'is_quiz', f.is_quiz,
             'update_window_hours', COALESCE(f.update_window_hours, 24),
             'wants_email_updates', COALESCE(f.wants_email_updates, false)
         ) as settings,
@@ -539,17 +448,17 @@ export async function fetchFormDetails(
           )
         ) AS feedbacks
     FROM forms f
-    LEFT JOIN quiz_settings qs ON f.quiz_settings_id = qs.quiz_settings_id
     LEFT JOIN form_versions fv ON f.form_id = fv.form_id AND fv.version_id = COALESCE($2, f.active_version_id)
     LEFT JOIN sections s ON f.form_id = s.form_id
     WHERE f.form_id = $1
-    GROUP BY f.form_id, f.title, f.description, qs.is_quiz, f.update_window_hours, f.wants_email_updates, fv.revision_id
+    GROUP BY f.form_id, f.title, f.description, f.is_quiz, f.update_window_hours, f.wants_email_updates, fv.revision_id
   `;
 
   const details = await pool.query<FormDetails>(query, [form_id, version_id]);
 
   return details.rows.length ? details.rows[0] : null;
 }
+
 
 
 
@@ -683,14 +592,19 @@ export async function handleVersionConflict(
   form_id: number,
   old_revision_id: string
 ): Promise<boolean> {
-  const currentActiveRevisionId = (
-    await pool.query<{ revision_id: string }>(
-      "SELECT revision_id FROM form_versions WHERE form_id = $1 AND is_active = TRUE",
-      [form_id]
-    )
-  ).rows[0].revision_id;
+  const result = await pool.query<{ revision_id: string }>(
+    "SELECT revision_id FROM form_versions WHERE form_id = $1 AND is_active = TRUE",
+    [form_id]
+  );
+
+  if (result.rows.length === 0) {
+    throw new HttpError("No active version found for the form.", 404);
+  }
+
+  const currentActiveRevisionId = result.rows[0].revision_id;
   return currentActiveRevisionId !== old_revision_id;
 }
+
 
 export const incrementVersion = (currentVersion: string) => {
   const versionParts = currentVersion.substring(1).split(".");

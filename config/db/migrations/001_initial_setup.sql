@@ -13,11 +13,6 @@ CREATE TABLE IF NOT EXISTS users (
     password VARCHAR(255) NOT NULL
 );
 
--- Quiz Settings: Settings for Quiz Forms and Grading
-CREATE TABLE IF NOT EXISTS quiz_settings (
-    quiz_settings_id SERIAL PRIMARY KEY,
-    is_quiz BOOLEAN NOT NULL
-);
 
 -- Feedback mechanism for quizzes
 CREATE TABLE IF NOT EXISTS feedbacks (
@@ -80,7 +75,7 @@ CREATE TABLE IF NOT EXISTS forms (
     owner_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     title VARCHAR NOT NULL, -- Merged from form_info
     description TEXT, -- Merged from form_info
-    quiz_settings_id INTEGER REFERENCES quiz_settings(quiz_settings_id),
+    is_quiz BOOLEAN DEFAULT FALSE,
     category_id INTEGER REFERENCES template_categories(category_id),
     is_template BOOLEAN DEFAULT FALSE,
     is_public BOOLEAN DEFAULT TRUE,
@@ -218,5 +213,4 @@ CREATE TABLE IF NOT EXISTS navigation_rules (
     condition TEXT,
     FOREIGN KEY (section_id) REFERENCES sections(section_id),
     FOREIGN KEY (target_section_id) REFERENCES sections(section_id)
-
 );

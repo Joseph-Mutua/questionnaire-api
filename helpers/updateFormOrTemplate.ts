@@ -4,21 +4,12 @@ import {
   fetchFormDetails,
   handleItem,
   handleSection,
-  handleVersionConflict,
   incrementVersion,
   updateOrCreateFeedback,
   updateOrCreateMediaProperties,
   updateOrCreateNavigationRule,
-  updateOrCreateQuizSettings,
-  updateOrCreateSettings,
 } from "../helpers/forms/formControllerHelpers";
-import {
-  Feedback,
-  MediaProperties,
-  NavigationRule,
-  QuizSettings,
-  Section,
-} from "../types";
+import { Feedback, MediaProperties, NavigationRule, Section } from "../types";
 import HttpError from "../utils/httpError";
 import { io } from "../server";
 
@@ -30,12 +21,15 @@ export async function updateFormOrTemplate(
     title: string;
     description: string;
     revision_id: string;
-    category_id?: number;
+    category_id: number;
     is_public: boolean;
     is_template: boolean;
+    is_quiz: boolean;
     sections: Section[];
-    settings: QuizSettings;
-    quiz_settings: QuizSettings;
+    settings: {
+      update_window_hours: number;
+      wants_email_updates: boolean;
+    };
     feedbacks: Feedback[];
     media_properties: MediaProperties;
     navigation_rules: NavigationRule[];
@@ -46,13 +40,11 @@ export async function updateFormOrTemplate(
   const {
     title,
     description,
-    revision_id: old_revision_id,
     category_id,
     is_public,
     is_template,
+    is_quiz,
     sections,
-    settings,
-    quiz_settings,
     feedbacks,
     media_properties,
     navigation_rules,
@@ -92,32 +84,30 @@ export async function updateFormOrTemplate(
            is_template = $3, 
            category_id = $4, 
            is_public = $5, 
+           is_quiz = $6,
            updated_at = CURRENT_TIMESTAMP 
-       WHERE form_id = $6 AND owner_id = $7`,
+       WHERE form_id = $7 AND owner_id = $8`,
       [
         title,
         description,
         is_template,
-        category_id || null,
+        category_id,
         is_public,
+        is_quiz,
         form_id,
         user_id,
       ]
     );
 
-    await updateOrCreateQuizSettings(pool, quiz_settings, form_id);
-    await updateOrCreateSettings(pool, settings, form_id);
-
-    for (const feedback of feedbacks) {
-      await updateOrCreateFeedback(pool, feedback);
+    if (feedbacks) {
+      for (const feedback of feedbacks) {
+        await updateOrCreateFeedback(pool, feedback);
+      }
     }
 
-    const mediaPropertiesId = await updateOrCreateMediaProperties(
-      pool,
-      media_properties
-    );
-
-    const sectionIdMap = new Map<number, number>();
+    if (media_properties) {
+      await updateOrCreateMediaProperties(pool, media_properties);
+    }
 
     for (const section of sections) {
       const section_id = await handleSection(
@@ -126,64 +116,47 @@ export async function updateFormOrTemplate(
         section,
         is_template
       );
-      sectionIdMap.set(section.seq_order, section_id);
       for (const item of section.items) {
         await handleItem(pool, form_id, section_id, item, !is_template);
       }
     }
 
-    for (const rule of navigation_rules) {
-      const section_id = sectionIdMap.get(rule.section_id);
-      const target_section_id = sectionIdMap.get(rule.target_section_id);
-      if (section_id && target_section_id) {
-        await updateOrCreateNavigationRule(pool, {
-          ...rule,
-          section_id,
-          target_section_id,
-        });
-      } else {
-        throw new HttpError("Section ID not found for navigation rule.", 400);
+    if (navigation_rules) {
+      for (const rule of navigation_rules) {
+        await updateOrCreateNavigationRule(pool, rule);
       }
     }
 
     if (!is_template) {
-      const conflict = await handleVersionConflict(
-        pool,
-        form_id,
-        old_revision_id
-      );
-      if (conflict) {
-        await pool.query("ROLLBACK");
-        throw new HttpError(
-          "Version conflict. Please refresh and reapply your changes.",
-          409
-        );
-      }
-
-      const currentRevision = (
-        await pool.query<{ revision_id: string }>(
-          "SELECT revision_id FROM form_versions WHERE form_id = $1 AND is_active = TRUE",
-          [form_id]
-        )
-      ).rows[0].revision_id;
-
-      const newRevisionId = incrementVersion(currentRevision);
-
-      await pool.query(
-        "UPDATE form_versions SET is_active = FALSE WHERE form_id = $1",
+      // Fetch the highest revision ID for the form
+      const currentHighestRevisionResult = await pool.query<{
+        revision_id: string;
+      }>(
+        "SELECT revision_id FROM form_versions WHERE form_id = $1 ORDER BY revision_id DESC LIMIT 1",
         [form_id]
       );
 
-      const versionResult = await pool.query<{ version_id: number }>(
-        "INSERT INTO form_versions (form_id, revision_id, content, is_active) VALUES ($1, $2, $3::jsonb, TRUE) RETURNING version_id",
+      if (currentHighestRevisionResult.rowCount === 0) {
+        throw new HttpError("No revisions found for this form.", 404);
+      }
+
+      const currentHighestRevision =
+        currentHighestRevisionResult.rows[0].revision_id;
+      const newRevisionId = incrementVersion(currentHighestRevision);
+
+      await pool.query(
+        "INSERT INTO form_versions (form_id, revision_id, content, is_active) VALUES ($1, $2, $3::jsonb, TRUE)",
         [form_id, newRevisionId, JSON.stringify(body)]
       );
 
-      const newVersionId = versionResult.rows[0].version_id;
+      await pool.query(
+        "UPDATE form_versions SET is_active = FALSE WHERE form_id = $1 AND revision_id != $2",
+        [form_id, newRevisionId]
+      );
 
       await pool.query(
-        "UPDATE forms SET active_version_id = $1 WHERE form_id = $2",
-        [newVersionId, form_id]
+        "UPDATE forms SET active_version_id = (SELECT version_id FROM form_versions WHERE form_id = $1 AND revision_id = $2) WHERE form_id = $1",
+        [form_id, newRevisionId]
       );
     }
 
@@ -193,7 +166,9 @@ export async function updateFormOrTemplate(
     io.to(form_id.toString()).emit("formUpdated", form_details);
 
     res.status(200).json({
-      message: "Form updated successfully",
+      message: is_template
+        ? "Template updated successfully"
+        : "Form updated successfully",
       form_details: form_details,
     });
   } catch (error) {

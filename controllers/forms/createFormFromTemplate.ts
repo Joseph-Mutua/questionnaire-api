@@ -1,5 +1,4 @@
 import { Router, Response, NextFunction } from "express";
-
 import { AuthRequest, authenticateUser } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
@@ -27,10 +26,15 @@ router.post(
       await pool.query("BEGIN");
 
       const templateResult = await pool.query<{
-        info_id: number;
-        settings_id: number;
+        title: string;
+        description: string;
+        is_quiz: boolean;
+        update_window_hours: number;
+        wants_email_updates: boolean;
       }>(
-        "SELECT info_id, settings_id FROM forms WHERE form_id = $1 AND is_template = TRUE",
+        `SELECT title, description, is_quiz, update_window_hours, wants_email_updates 
+         FROM forms 
+         WHERE form_id = $1 AND is_template = TRUE`,
         [template_id]
       );
 
@@ -38,24 +42,35 @@ router.post(
         throw new HttpError("Template not found.", 404);
       }
 
-      const { info_id, settings_id } = templateResult.rows[0];
+      const {
+        title,
+        description,
+        is_quiz,
+        update_window_hours,
+        wants_email_updates,
+      } = templateResult.rows[0];
 
       const formResult = await pool.query<{ form_id: number }>(
-        `INSERT INTO forms (owner_id, info_id, settings_id, is_template, is_public, created_at, updated_at)
-         VALUES ($1, $2, $3, FALSE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `INSERT INTO forms (owner_id, title, description, is_template, is_public, created_at, updated_at, is_quiz, update_window_hours, wants_email_updates)
+         VALUES ($1, $2, $3, FALSE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $4, $5, $6)
          RETURNING form_id`,
-        [user_id, info_id, settings_id]
+        [
+          user_id,
+          title,
+          description,
+          is_quiz,
+          update_window_hours,
+          wants_email_updates,
+        ]
       );
+
       const form_id = formResult.rows[0].form_id;
 
-      const roleIdResult = await pool.query<{ role_id: number }>(
-        "SELECT role_id FROM roles WHERE name = 'Owner'"
-      );
-      const ownerRoleId = roleIdResult.rows[0].role_id;
+      const ownerRole = "OWNER";
 
       await pool.query(
-        "INSERT INTO form_user_roles (form_id, user_id, role_id) VALUES ($1, $2, $3)",
-        [form_id, user_id, ownerRoleId]
+        "INSERT INTO form_user_roles (form_id, user_id, role) VALUES ($1, $2, $3)",
+        [form_id, user_id, ownerRole]
       );
 
       const sectionsResult = await pool.query<{

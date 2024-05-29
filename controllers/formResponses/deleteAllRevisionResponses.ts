@@ -6,6 +6,13 @@ import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
+
+
+
+
+
+
+
 // DELETE all responses for a specific form and revision
 router.delete(
   "/:form_id/revisions/:revision_id/responses",
@@ -18,6 +25,7 @@ router.delete(
         SELECT form_id FROM forms
         WHERE form_id = $1 AND owner_id = $2;
     `;
+
     const permissionResult = await pool.query(permissionCheckQuery, [
       form_id,
       user_id,

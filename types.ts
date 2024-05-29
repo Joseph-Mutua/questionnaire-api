@@ -99,15 +99,18 @@ interface Option {
 
 export interface FormDetails {
   form_id: number;
-  revision_id: string;
   title: string;
-  description: string | null;
-  settings_id: number;
-  is_quiz: boolean | null;
-  quiz_settings_id: number | null;
-  update_window_hours: number;
-  wants_email_updates: boolean;
+  description: string;
+  settings: {
+    is_quiz: boolean;
+    update_window_hours: number;
+    wants_email_updates: boolean;
+  };
+  revision_id: string;
   sections: Section[];
+  feedbacks: Feedback[];
+  media_properties: MediaProperties[];
+  navigation_rules: NavigationRule[];
 }
 
 export interface EmailTemplateData {

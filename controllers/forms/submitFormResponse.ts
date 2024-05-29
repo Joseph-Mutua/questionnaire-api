@@ -7,15 +7,12 @@ import {
 } from "../../helpers/forms/formControllerHelpers";
 import { FormResponseBody } from "../../types";
 import asyncHandler from "../../utils/asyncHandler";
+import HttpError from "../../utils/httpError";
 
 const router = Router();
 
-//Submit form response
-
-
 router.post(
   "/:form_id/responses",
-
   asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { form_id } = req.params;
     const { answers, respondent_email } = req.body as FormResponseBody;
@@ -36,8 +33,7 @@ router.post(
       const activeVersionId = versionResult.rows[0]?.version_id;
 
       if (!activeVersionId) {
-        res.status(404).json({ error: "Active form version not found." });
-        return;
+        throw new HttpError("No active version found for this form.", 404);
       }
 
       const insertResponseQuery = `
@@ -124,6 +120,5 @@ router.post(
     }
   })
 );
-
 
 export default router;
