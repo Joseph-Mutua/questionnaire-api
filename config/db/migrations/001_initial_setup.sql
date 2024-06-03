@@ -73,8 +73,8 @@ CREATE TABLE IF NOT EXISTS form_versions (
 CREATE TABLE IF NOT EXISTS forms (
     form_id SERIAL PRIMARY KEY,
     owner_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    title VARCHAR NOT NULL, -- Merged from form_info
-    description TEXT, -- Merged from form_info
+    title VARCHAR NOT NULL,
+    description TEXT, 
     is_quiz BOOLEAN DEFAULT FALSE,
     category_id INTEGER REFERENCES template_categories(category_id),
     is_template BOOLEAN DEFAULT FALSE,

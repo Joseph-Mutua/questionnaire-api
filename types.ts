@@ -121,23 +121,19 @@ export interface EmailTemplateData {
   password?: string;
 }
 
-
-// Feedback type
 export interface Feedback {
-  feedback_id?: number; // Optional for new feedbacks
+  feedback_id?: number;
   text: string;
 }
 
-// MediaProperties type
 export interface MediaProperties {
   alignment: 'LEFT' | 'RIGHT' | 'CENTER';
   width: number;
 }
 
-// NavigationRule type
 export interface NavigationRule {
-  rule_id?: number; // Optional for new rules
+  rule_id?: number; 
   section_id: number;
   target_section_id: number;
-  condition: string; // JSON string representing the condition
+  condition: string;
 }

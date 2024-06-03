@@ -6,13 +6,6 @@ import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
-
-
-
-
-
-
-
 // DELETE all responses for a specific form and revision
 router.delete(
   "/:form_id/revisions/:revision_id/responses",

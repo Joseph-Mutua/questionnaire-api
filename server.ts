@@ -12,8 +12,6 @@ import userRoutes from "./controllers/users";
 import formRoutes from "./controllers/forms";
 import formResponseRoutes from "./controllers/formResponses";
 import templateRoutes from "./controllers/templates";
-
-
 import errorHandler from "./middleware/error";
 import { checkAuthorization } from "./helpers/forms/formControllerHelpers";
 
@@ -25,7 +23,7 @@ const app: Express = express();
 const httpServer = new HTTPServer(app);
 const io = new SocketServer(httpServer, {
   cors: {
-    origin: ["http://localhost:3000"],
+    origin: ["http://localhost:3000", "http://localhost:5173"],
     credentials: true,
   },
 });
@@ -71,7 +69,7 @@ io.on("connection", (socket) => {
 
 const port = process.env.PORT || 3000;
 
-app.use(cors({ origin: ["http://localhost:3000"], credentials: true }));
+app.use(cors({ origin: ["http://localhost:3000", "http://localhost:5173"], credentials: true }));
 app.use(helmet());
 app.use(morgan("tiny"));
 app.use(express.json());

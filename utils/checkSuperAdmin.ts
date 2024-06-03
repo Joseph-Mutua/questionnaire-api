@@ -15,16 +15,15 @@ export const checkSuperAdmin = async (
 
   try {
     const result = await pool.query(
-      `SELECT r.name FROM roles r
-             JOIN user_roles ur ON r.role_id = ur.role_id
-             WHERE ur.user_id = $1 AND r.name = 'SuperAdmin'`,
+      `SELECT role FROM user_roles
+       WHERE user_id = $1 AND role = 'SUPERADMIN'`,
       [user_id]
     );
 
     if (result.rowCount === 0) {
       return res
         .status(403)
-        .json({ message: "Forbidden: Requires SuperAdmin role" });
+        .json({ message: "Forbidden: Requires SUPERADMIN role" });
     }
 
     next();

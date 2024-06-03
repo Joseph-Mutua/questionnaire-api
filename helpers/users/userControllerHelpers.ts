@@ -78,13 +78,8 @@ export async function isOwner(
     [form_id]
   );
 
-  if (rows.length === 0) {
-    throw new HttpError("Form not found.", 404);
-  }
-
   if (rows[0].owner_id !== user_id) {
     throw new HttpError("Only the owner can send invitations.", 403);
   }
-
   next();
 }

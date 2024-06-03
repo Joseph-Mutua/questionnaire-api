@@ -365,8 +365,7 @@ export async function sendNewResponseAlert(
   );
 }
 
-// Ensure the getFormOwnerEmail function exists and works correctly
-async function getFormOwnerEmail(form_id: number): Promise<string | null> {
+export async function getFormOwnerEmail(form_id: number): Promise<string | null> {
   const result = await pool.query<{ email: string }>(
     "SELECT email FROM users WHERE user_id = (SELECT owner_id FROM forms WHERE form_id = $1)",
     [form_id]
@@ -458,9 +457,6 @@ export async function fetchFormDetails(
 
   return details.rows.length ? details.rows[0] : null;
 }
-
-
-
 
 export async function fetchQuestionDetails(
   pool: Pool,
