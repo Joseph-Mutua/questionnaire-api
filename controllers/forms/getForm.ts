@@ -26,11 +26,10 @@ router.get(
     try {
       await pool.query("BEGIN");
       const roleCheckQuery = `
-    SELECT r.name FROM form_user_roles fur
-    JOIN roles r ON fur.role_id = r.role_id
-    WHERE fur.form_id = $1 AND fur.user_id = $2;
+    SELECT role FROM form_user_roles
+    WHERE form_id = $1 AND user_id = $2;
   `;
-      const roleResult = await pool.query<{ name: string }>(roleCheckQuery, [
+      const roleResult = await pool.query<{ role: string }>(roleCheckQuery, [
         form_id,
         user_id,
       ]);
@@ -38,7 +37,7 @@ router.get(
       if (
         roleResult.rowCount === 0 ||
         !roleResult.rows.some((row) =>
-          ["Owner", "Editor", "Viewer"].includes(row.name)
+          ["OWNER", "EDITOR", "VIEWER"].includes(row.role)
         )
       ) {
         throw new HttpError(
@@ -59,5 +58,6 @@ router.get(
     }
   })
 );
+
 
 export default router;

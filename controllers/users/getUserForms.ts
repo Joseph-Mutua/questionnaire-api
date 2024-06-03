@@ -23,10 +23,6 @@ router.get(
       [user_id]
     );
 
-    if (basicFormsResult.rows.length === 0) {
-      throw new HttpError("No forms found for this user.", 404);
-    }
-
     const formsDetailsPromises = basicFormsResult.rows.map((row) =>
       fetchFormDetails(pool, row.form_id)
     );

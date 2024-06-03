@@ -18,6 +18,7 @@ router.delete(
         SELECT form_id FROM forms
         WHERE form_id = $1 AND owner_id = $2;
     `;
+
     const permissionResult = await pool.query(permissionCheckQuery, [
       form_id,
       user_id,
