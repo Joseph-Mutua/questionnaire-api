@@ -1,11 +1,10 @@
 import { Pool } from "pg";
-import {fetchFormDetails} from "../helpers/forms/formControllerHelpers";
+import { fetchFormDetails } from "../helpers/forms/formControllerHelpers";
 import HttpError from "../utils/httpError";
 
 interface CreateFormDetails {
   title: string;
   description: string;
-  is_template: boolean;
   category_id?: number;
   is_public?: boolean;
   is_quiz?: boolean;
@@ -14,24 +13,24 @@ interface CreateFormDetails {
 export const createFormOrTemplate = async (
   pool: Pool,
   user_id: number,
-  formDetails: CreateFormDetails,
-  isTemplate: boolean
+  formDetails: CreateFormDetails
 ) => {
   const { title, description, category_id, is_public, is_quiz } = formDetails;
 
   if (!user_id) throw new HttpError("User must be logged in.", 403);
 
+  const isTemplate = category_id !== undefined;
+
   await pool.query("BEGIN");
   try {
     const formResult = await pool.query<{ form_id: number }>(
-      `INSERT INTO forms (owner_id, title, description, is_template, category_id, is_public, is_quiz) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7) 
+      `INSERT INTO forms (owner_id, title, description, category_id, is_public, is_quiz) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING form_id`,
       [
         user_id,
         title,
         description,
-        isTemplate ?? false,
         category_id ?? null,
         is_public ?? true,
         is_quiz ?? false,

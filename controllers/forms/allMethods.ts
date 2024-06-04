@@ -20,7 +20,6 @@ import {
 
 } from "../../types";
 import { inviteUser, isOwner } from "../../helpers/users/userControllerHelpers";
-import { io } from "../../server";
 import asyncHandler from "../../utils/asyncHandler";
 import { createFormOrTemplate } from "../../helpers/createFormOrTemplate";
 import { updateFormOrTemplate } from "../../helpers/updateFormOrTemplate";

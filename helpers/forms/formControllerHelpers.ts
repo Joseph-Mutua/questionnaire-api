@@ -2,8 +2,6 @@ import { Pool } from "pg";
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import {
-  Feedback,
-  FeedbackIds,
   FormDetails,
   Grading,
   Item,
@@ -42,22 +40,22 @@ export async function updateOrCreateSettings(
 }
 
 
-export async function updateOrCreateFeedback(pool: Pool, feedback: Feedback) {
-  if (feedback.feedback_id) {
-    await pool.query(
-      `UPDATE feedbacks 
-       SET text = $1
-       WHERE feedback_id = $2`,
-      [feedback.text, feedback.feedback_id]
-    );
-  } else {
-    await pool.query(
-      `INSERT INTO feedbacks (text) 
-       VALUES ($1)`,
-      [feedback.text]
-    );
-  }
-}
+// export async function updateOrCreateFeedback(pool: Pool, feedback: Feedback) {
+//   if (feedback.feedback_id) {
+//     await pool.query(
+//       `UPDATE feedbacks 
+//        SET text = $1
+//        WHERE feedback_id = $2`,
+//       [feedback.text, feedback.feedback_id]
+//     );
+//   } else {
+//     await pool.query(
+//       `INSERT INTO feedbacks (text) 
+//        VALUES ($1)`,
+//       [feedback.text]
+//     );
+//   }
+// }
 
 export async function updateOrCreateMediaProperties(
   pool: Pool,
@@ -91,28 +89,50 @@ export async function updateOrCreateNavigationRule(pool: Pool, rule: NavigationR
 
 
 
+// export async function handleSection(
+//   pool: Pool,
+//   form_id: number,
+//   section: Section,
+//   is_template: boolean
+// ) {
+//   const sectionResult = await pool.query<{ section_id: number }>(
+//     `INSERT INTO sections (form_id, title, description, seq_order, is_template) 
+//      VALUES ($1, $2, $3, $4, $5) 
+//      ON CONFLICT (form_id, seq_order, is_template) 
+//      DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description 
+//      RETURNING section_id`,
+//     [
+//       form_id,
+//       section.title,
+//       section.description,
+//       section.seq_order,
+//       is_template,
+//     ]
+//   );
+//   return sectionResult.rows[0].section_id;
+// }
+
+
 export async function handleSection(
   pool: Pool,
   form_id: number,
-  section: Section,
-  is_template: boolean
+  section: Section
 ) {
   const sectionResult = await pool.query<{ section_id: number }>(
-    `INSERT INTO sections (form_id, title, description, seq_order, is_template) 
-     VALUES ($1, $2, $3, $4, $5) 
-     ON CONFLICT (form_id, seq_order, is_template) 
+    `INSERT INTO sections (form_id, title, description, seq_order) 
+     VALUES ($1, $2, $3, $4) 
+     ON CONFLICT (form_id, seq_order) 
      DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description 
      RETURNING section_id`,
-    [
-      form_id,
-      section.title,
-      section.description,
-      section.seq_order,
-      is_template,
-    ]
+    [form_id, section.title, section.description, section.seq_order]
   );
   return sectionResult.rows[0].section_id;
 }
+
+
+
+
+
 export async function handleItem(
   pool: Pool,
   id: number,
@@ -246,22 +266,14 @@ export async function handleGrading(
   pool: Pool,
   grading: Grading
 ): Promise<number> {
-  const feedbackIds = await ensureFeedbackExists(pool, [
-    grading.when_right,
-    grading.when_wrong,
-    grading.general_feedback,
-  ]);
-
-  const gradingResult = await pool.query<{
-    grading_id: number;
-  }>(
-    `INSERT INTO gradings (point_value, when_right, when_wrong, general_feedback, answer_key, auto_feedback) 
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING grading_id`,
+  const gradingResult = await pool.query<{ grading_id: number }>(
+    `INSERT INTO gradings (point_value, when_right, when_wrong, general_feedback, answer_key, auto_feedback)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING grading_id`,
     [
       grading.point_value,
-      feedbackIds.when_right,
-      feedbackIds.when_wrong,
-      feedbackIds.general_feedback,
+      grading.when_right, 
+      grading.when_wrong,
+      grading.general_feedback,
       grading.answer_key,
       grading.auto_feedback,
     ]
@@ -269,36 +281,36 @@ export async function handleGrading(
   return gradingResult.rows[0].grading_id;
 }
 
-export async function ensureFeedbackExists(pool: Pool, feedbackIds: number[]) {
-  const resultIds: FeedbackIds = {
-    when_right: null,
-    when_wrong: null,
-    general_feedback: null,
-  };
+// export async function ensureFeedbackExists(pool: Pool, feedbackIds: number[]) {
+//   const resultIds: FeedbackIds = {
+//     when_right: null,
+//     when_wrong: null,
+//     general_feedback: null,
+//   };
 
-  for (let i = 0; i < feedbackIds.length; i++) {
-    let id = feedbackIds[i];
-    if (id) {
-      const feedbackCheck = await pool.query(
-        `SELECT feedback_id FROM feedbacks WHERE feedback_id = $1`,
-        [id]
-      );
-      if (feedbackCheck.rows.length === 0) {
-        const insertFeedback = await pool.query<{
-          feedback_id: number;
-        }>(
-          `INSERT INTO feedbacks (text) VALUES ('Default feedback') RETURNING feedback_id`
-        );
-        id = insertFeedback.rows[0].feedback_id;
-      }
-      if (i === 0) resultIds.when_right = id;
-      if (i === 1) resultIds.when_wrong = id;
-      if (i === 2) resultIds.general_feedback = id;
-    }
-  }
+//   for (let i = 0; i < feedbackIds.length; i++) {
+//     let id = feedbackIds[i];
+//     if (id) {
+//       const feedbackCheck = await pool.query(
+//         `SELECT feedback_id FROM feedbacks WHERE feedback_id = $1`,
+//         [id]
+//       );
+//       if (feedbackCheck.rows.length === 0) {
+//         const insertFeedback = await pool.query<{
+//           feedback_id: number;
+//         }>(
+//           `INSERT INTO feedbacks (text) VALUES ('Default feedback') RETURNING feedback_id`
+//         );
+//         id = insertFeedback.rows[0].feedback_id;
+//       }
+//       if (i === 0) resultIds.when_right = id;
+//       if (i === 1) resultIds.when_wrong = id;
+//       if (i === 2) resultIds.general_feedback = id;
+//     }
+//   }
 
-  return resultIds;
-}
+//   return resultIds;
+// }
 
 export async function sendSubmissionConfirmation(
   recipientEmail: string,
@@ -404,8 +416,8 @@ export async function fetchFormDetails(
                     'grading', (SELECT json_build_object(
                         'grading_id', g.grading_id,
                         'point_value', g.point_value,
-                        'when_right', g.when_right,
-                        'when_wrong', g.when_wrong,
+                        'when_right', g.when_right,  
+                        'when_wrong', g.when_wrong,  
                         'general_feedback', g.general_feedback,
                         'answer_key', g.answer_key,
                         'auto_feedback', g.auto_feedback
@@ -433,19 +445,8 @@ export async function fetchFormDetails(
             'target_section_id', nr.target_section_id,
             'condition', nr.condition
           )) FROM navigation_rules nr WHERE nr.section_id IN (SELECT section_id FROM sections WHERE form_id = f.form_id)
-        ) AS navigation_rules,
-        (
-          SELECT json_agg(json_build_object(
-            'feedback_id', fb.feedback_id,
-            'text', fb.text
-          )) FROM feedbacks fb WHERE fb.feedback_id IN (
-            SELECT g.when_right FROM gradings g WHERE g.grading_id IN (SELECT grading_id FROM questions WHERE question_id IN (SELECT question_id FROM question_items WHERE item_id IN (SELECT item_id FROM items WHERE section_id IN (SELECT section_id FROM sections WHERE form_id = f.form_id))))
-            UNION
-            SELECT g.when_wrong FROM gradings g WHERE g.grading_id IN (SELECT grading_id FROM questions WHERE question_id IN (SELECT question_id FROM question_items WHERE item_id IN (SELECT item_id FROM items WHERE section_id IN (SELECT section_id FROM sections WHERE form_id = f.form_id))))
-            UNION
-            SELECT g.general_feedback FROM gradings g WHERE g.grading_id IN (SELECT grading_id FROM questions WHERE question_id IN (SELECT question_id FROM question_items WHERE item_id IN (SELECT item_id FROM items WHERE section_id IN (SELECT section_id FROM sections WHERE form_id = f.form_id))))
-          )
-        ) AS feedbacks
+        ) AS navigation_rules
+        -- Remove the 'feedbacks' part as it is not used anymore
     FROM forms f
     LEFT JOIN form_versions fv ON f.form_id = fv.form_id AND fv.version_id = COALESCE($2, f.active_version_id)
     LEFT JOIN sections s ON f.form_id = s.form_id
@@ -457,6 +458,7 @@ export async function fetchFormDetails(
 
   return details.rows.length ? details.rows[0] : null;
 }
+
 
 export async function fetchQuestionDetails(
   pool: Pool,

@@ -15,7 +15,7 @@ export const checkSuperAdmin = async (
 
   try {
     const result = await pool.query(
-      `SELECT role FROM user_roles
+      `SELECT role FROM users
        WHERE user_id = $1 AND role = 'SUPERADMIN'`,
       [user_id]
     );

@@ -93,7 +93,6 @@ router.post(
             seq_order: section.seq_order,
             items: [],
           },
-          false
         );
 
         const itemsResult = await pool.query<{

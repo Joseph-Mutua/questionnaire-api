@@ -13,7 +13,7 @@ router.post(
   asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
     const user_id = req.user?.user_id;
 
-    const { title, description, is_template, category_id, is_public } =
+    const { title, description, category_id, is_public } =
       req.body as {
         title: string;
         description: string;
@@ -26,8 +26,7 @@ router.post(
       const result = await createFormOrTemplate(
         pool,
         user_id!,
-        { title, description, is_template, category_id, is_public },
-        true
+        { title, description, category_id, is_public },
       );
       res.status(201).json(result);
     } catch (error) {

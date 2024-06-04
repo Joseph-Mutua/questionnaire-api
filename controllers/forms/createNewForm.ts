@@ -15,7 +15,6 @@ router.post(
     const {
       title,
       description,
-      is_template = false,
       category_id,
       is_public,
       is_quiz,
@@ -32,8 +31,8 @@ router.post(
       const result = await createFormOrTemplate(
         pool,
         user_id!,
-        { title, description, is_template, category_id, is_public, is_quiz },
-        false
+        { title, description, category_id, is_public, is_quiz },
+
       );
       res.status(201).json(result);
     } catch (error) {

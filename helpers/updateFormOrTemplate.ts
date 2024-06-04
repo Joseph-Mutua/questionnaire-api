@@ -5,7 +5,6 @@ import {
   handleItem,
   handleSection,
   incrementVersion,
-  updateOrCreateFeedback,
   updateOrCreateMediaProperties,
   updateOrCreateNavigationRule,
 } from "../helpers/forms/formControllerHelpers";
@@ -23,7 +22,6 @@ export async function updateFormOrTemplate(
     revision_id: string;
     category_id: number;
     is_public: boolean;
-    is_template: boolean;
     is_quiz: boolean;
     sections: Section[];
     settings: {
@@ -42,16 +40,16 @@ export async function updateFormOrTemplate(
     description,
     category_id,
     is_public,
-    is_template,
     is_quiz,
     sections,
-    feedbacks,
     media_properties,
     navigation_rules,
   } = body;
 
   if (!user_id) throw new HttpError("User must be logged in.", 403);
   if (!form_id) throw new HttpError("Invalid form ID.", 400);
+
+  const isTemplate = category_id !== undefined;
 
   try {
     const roleCheckQuery = `
@@ -81,29 +79,13 @@ export async function updateFormOrTemplate(
       `UPDATE forms 
        SET title = $1, 
            description = $2, 
-           is_template = $3, 
-           category_id = $4, 
-           is_public = $5, 
-           is_quiz = $6,
+           category_id = $3, 
+           is_public = $4, 
+           is_quiz = $5,
            updated_at = CURRENT_TIMESTAMP 
-       WHERE form_id = $7 AND owner_id = $8`,
-      [
-        title,
-        description,
-        is_template,
-        category_id,
-        is_public,
-        is_quiz,
-        form_id,
-        user_id,
-      ]
+       WHERE form_id = $6 AND owner_id = $7`,
+      [title, description, category_id, is_public, is_quiz, form_id, user_id]
     );
-
-    if (feedbacks) {
-      for (const feedback of feedbacks) {
-        await updateOrCreateFeedback(pool, feedback);
-      }
-    }
 
     if (media_properties) {
       await updateOrCreateMediaProperties(pool, media_properties);
@@ -114,10 +96,9 @@ export async function updateFormOrTemplate(
         pool,
         form_id,
         section,
-        is_template
       );
       for (const item of section.items) {
-        await handleItem(pool, form_id, section_id, item, !is_template);
+        await handleItem(pool, form_id, section_id, item, !isTemplate);
       }
     }
 
@@ -127,7 +108,7 @@ export async function updateFormOrTemplate(
       }
     }
 
-    if (!is_template) {
+    if (!isTemplate) {
       // Fetch the highest revision ID for the form
       const currentHighestRevisionResult = await pool.query<{
         revision_id: string;
@@ -166,7 +147,7 @@ export async function updateFormOrTemplate(
     io.to(form_id.toString()).emit("formUpdated", form_details);
 
     res.status(200).json({
-      message: is_template
+      message: isTemplate
         ? "Template updated successfully"
         : "Form updated successfully",
       form_details: form_details,
