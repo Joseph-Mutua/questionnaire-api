@@ -11,7 +11,19 @@ export interface QuestionOptions {
   choices: Option[];
 }
 
+export interface Grading {
+  grading_id: number;
+  point_value: number;
+  when_right: string;
+  when_wrong: string;
+  general_feedback: string;
+  answer_key: string;
+  auto_feedback: boolean;
+}
+
+
 export interface Question {
+  question_id: number;
   required: boolean;
   kind:
     | "CHOICE_QUESTION"
@@ -21,17 +33,27 @@ export interface Question {
     | "TIME_QUESTION"
     | "FILE_UPLOAD_QUESTION"
     | "ROW_QUESTION";
+  grading_id: number | null;
   grading?: Grading;
   options?: QuestionOptions;
 }
 
-export interface Grading {
-  point_value: number;
-  when_right: number;
-  when_wrong: number;
-  general_feedback: number;
-  answer_key: string;
-  auto_feedback: boolean;
+
+export interface QuestionOptions {
+  type: "RADIO" | "CHECKBOX" | "DROP_DOWN" | "CHOICE_TYPE_UNSPECIFIED";
+  shuffle: boolean;
+  choices: {
+    option_id: number;
+    value: string;
+    image_id: number | null;
+    is_other: boolean;
+    goto_action:
+      | "NEXT_SECTION"
+      | "RESTART_FORM"
+      | "SUBMIT_FORM"
+      | "GO_TO_ACTION_UNSPECIFIED"
+      | null;
+  }[];
 }
 
 export interface Item {
@@ -57,9 +79,9 @@ export interface Section {
 }
 
 export interface FeedbackIds {
-  when_right: number | null;
-  when_wrong: number | null;
-  general_feedback: number | null;
+  when_right: string | null;
+  when_wrong: string | null;
+  general_feedback: string | null;
 }
 
 export interface Grade {
@@ -109,7 +131,6 @@ export interface FormDetails {
   revision_id: string;
   sections: Section[];
   feedbacks: Feedback[];
-  media_properties: MediaProperties[];
   navigation_rules: NavigationRule[];
 }
 
@@ -126,13 +147,8 @@ export interface Feedback {
   text: string;
 }
 
-export interface MediaProperties {
-  alignment: 'LEFT' | 'RIGHT' | 'CENTER';
-  width: number;
-}
-
 export interface NavigationRule {
-  rule_id?: number; 
+  rule_id?: number;
   section_id: number;
   target_section_id: number;
   condition: string;

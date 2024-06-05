@@ -1,48 +1,30 @@
--- enum types
+-- Create enum types if they don't exist
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'alignment_enum') THEN
         CREATE TYPE alignment_enum AS ENUM ('LEFT', 'RIGHT', 'CENTER');
     END IF;
-END $$;
 
-DO $$
-BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role_enum') THEN
         CREATE TYPE user_role_enum AS ENUM ('USER', 'SUPERADMIN');
     END IF;
-END $$;
 
-DO $$
-BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'form_user_role_enum') THEN
         CREATE TYPE form_user_role_enum AS ENUM ('OWNER', 'EDITOR', 'VIEWER', 'SUPERADMIN');
     END IF;
-END $$;
 
-DO $$
-BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'item_kind_enum') THEN
         CREATE TYPE item_kind_enum AS ENUM ('QUESTION_ITEM', 'QUESTION_GROUP_ITEM', 'PAGE_BREAK_ITEM', 'TEXT_ITEM', 'IMAGE_ITEM');
     END IF;
-END $$;
 
-DO $$
-BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'question_kind_enum') THEN
         CREATE TYPE question_kind_enum AS ENUM ('CHOICE_QUESTION', 'TEXT_QUESTION', 'SCALE_QUESTION', 'DATE_QUESTION', 'TIME_QUESTION', 'FILE_UPLOAD_QUESTION', 'ROW_QUESTION');
     END IF;
-END $$;
 
-DO $$
-BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'choice_question_type_enum') THEN
         CREATE TYPE choice_question_type_enum AS ENUM ('RADIO', 'CHECKBOX', 'DROP_DOWN', 'CHOICE_TYPE_UNSPECIFIED');
     END IF;
-END $$;
 
-DO $$
-BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'goto_action_enum') THEN
         CREATE TYPE goto_action_enum AS ENUM ('NEXT_SECTION', 'RESTART_FORM', 'SUBMIT_FORM', 'GO_TO_ACTION_UNSPECIFIED');
     END IF;
@@ -59,7 +41,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- Details about images used in forms
 CREATE TABLE IF NOT EXISTS images (
     image_id SERIAL PRIMARY KEY,
-    content_uri TEXT NOT NULL, --download
+    content_uri TEXT NOT NULL, -- download URL
     alt_text TEXT,
     source_uri TEXT,
     alignment alignment_enum,
@@ -73,7 +55,7 @@ CREATE TABLE IF NOT EXISTS gradings (
     when_right TEXT NOT NULL,
     when_wrong TEXT NOT NULL,
     general_feedback TEXT,
-    answer_key TEXT NOT NULL, --possible correct answers
+    answer_key TEXT NOT NULL, -- possible correct answers
     auto_feedback BOOLEAN DEFAULT FALSE
 );
 
@@ -139,7 +121,7 @@ ON sections (form_id, seq_order);
 CREATE TABLE IF NOT EXISTS items (
     item_id SERIAL PRIMARY KEY,
     form_id INTEGER NOT NULL,
-    section_id INTEGER,
+    section_id INTEGER NOT NULL,
     title TEXT,
     description TEXT,
     kind item_kind_enum NOT NULL,
@@ -177,12 +159,12 @@ CREATE TABLE IF NOT EXISTS choice_questions (
 -- Defines options for choice questions, including images and navigation actions
 CREATE TABLE IF NOT EXISTS options (
     option_id SERIAL PRIMARY KEY,
-    question_id SERIAL NOT NULL,
+    question_id INTEGER NOT NULL,
     value TEXT NOT NULL,
     image_id INTEGER,
     is_other BOOLEAN,
     goto_action goto_action_enum,
-    goto_section_id SERIAL,
+    goto_section_id INTEGER,
     FOREIGN KEY (question_id) REFERENCES choice_questions(question_id),
     FOREIGN KEY (image_id) REFERENCES images(image_id)
 );
@@ -205,9 +187,9 @@ CREATE TABLE IF NOT EXISTS form_responses (
 CREATE TABLE IF NOT EXISTS answers (
     answer_id SERIAL PRIMARY KEY,
     response_id INTEGER NOT NULL,
-    question_id SERIAL NOT NULL,
-    value TEXT,
-    score INTEGER DEFAULT 0,
+    question_id INTEGER NOT NULL,
+    value TEXT,  -- Response provided by user
+    score INTEGER DEFAULT 0, -- score assigned to each answer for quiz types
     feedback TEXT,
     FOREIGN KEY (response_id) REFERENCES form_responses(response_id),
     FOREIGN KEY (question_id) REFERENCES questions(question_id)
@@ -219,7 +201,7 @@ CREATE TABLE IF NOT EXISTS navigation_rules (
     section_id INTEGER NOT NULL,
     target_section_id INTEGER NOT NULL,
     UNIQUE (section_id, target_section_id, condition),
-    condition TEXT,
+    condition TEXT NOT NULL,
     FOREIGN KEY (section_id) REFERENCES sections(section_id),
     FOREIGN KEY (target_section_id) REFERENCES sections(section_id)
 );

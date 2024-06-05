@@ -12,28 +12,23 @@ router.post(
   asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
     const user_id = req.user?.user_id;
 
-    const {
-      title,
-      description,
-      category_id,
-      is_public,
-      is_quiz,
-    } = req.body as {
-      title: string;
-      description: string;
-      is_template: boolean;
-      category_id?: number;
-      is_public?: boolean;
-      is_quiz?: boolean;
-    };
+    const { title, description, category_id, is_public, is_quiz } =
+      req.body as {
+        title: string;
+        description: string;
+        category_id?: number;
+        is_public?: boolean;
+        is_quiz?: boolean;
+      };
 
     try {
-      const result = await createFormOrTemplate(
-        pool,
-        user_id!,
-        { title, description, category_id, is_public, is_quiz },
-
-      );
+      const result = await createFormOrTemplate(pool, user_id!, {
+        title,
+        description,
+        category_id,
+        is_public,
+        is_quiz,
+      });
       res.status(201).json(result);
     } catch (error) {
       next(error);

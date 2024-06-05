@@ -6,7 +6,6 @@ import HttpError from "../../utils/httpError";
 import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
-
 router.patch(
   "/:id",
   asyncHandler(authenticateUser),

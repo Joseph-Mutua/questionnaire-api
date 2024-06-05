@@ -5,10 +5,9 @@ import {
   handleItem,
   handleSection,
   incrementVersion,
-  updateOrCreateMediaProperties,
   updateOrCreateNavigationRule,
 } from "../helpers/forms/formControllerHelpers";
-import { Feedback, MediaProperties, NavigationRule, Section } from "../types";
+import { Feedback, NavigationRule, Section } from "../types";
 import HttpError from "../utils/httpError";
 import { io } from "../server";
 
@@ -29,7 +28,6 @@ export async function updateFormOrTemplate(
       wants_email_updates: boolean;
     };
     feedbacks: Feedback[];
-    media_properties: MediaProperties;
     navigation_rules: NavigationRule[];
   },
   res: Response,
@@ -42,7 +40,6 @@ export async function updateFormOrTemplate(
     is_public,
     is_quiz,
     sections,
-    media_properties,
     navigation_rules,
   } = body;
 
@@ -87,16 +84,9 @@ export async function updateFormOrTemplate(
       [title, description, category_id, is_public, is_quiz, form_id, user_id]
     );
 
-    if (media_properties) {
-      await updateOrCreateMediaProperties(pool, media_properties);
-    }
 
     for (const section of sections) {
-      const section_id = await handleSection(
-        pool,
-        form_id,
-        section,
-      );
+      const section_id = await handleSection(pool, form_id, section);
       for (const item of section.items) {
         await handleItem(pool, form_id, section_id, item, !isTemplate);
       }
@@ -109,7 +99,6 @@ export async function updateFormOrTemplate(
     }
 
     if (!isTemplate) {
-      // Fetch the highest revision ID for the form
       const currentHighestRevisionResult = await pool.query<{
         revision_id: string;
       }>(

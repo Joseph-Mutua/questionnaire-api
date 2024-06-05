@@ -5,15 +5,14 @@ import {
   FormDetails,
   Grading,
   Item,
-  MediaProperties,
   NavigationRule,
   Question,
+  QuestionOptions,
   Section,
 } from "../../types";
 import { loadEmailTemplate, sendEmail } from "../../utils/Mailer";
 import { pool } from "../../config/db";
 import HttpError from "../../utils/httpError";
-
 
 export async function updateOrCreateSettings(
   pool: Pool,
@@ -39,44 +38,10 @@ export async function updateOrCreateSettings(
   );
 }
 
-
-// export async function updateOrCreateFeedback(pool: Pool, feedback: Feedback) {
-//   if (feedback.feedback_id) {
-//     await pool.query(
-//       `UPDATE feedbacks 
-//        SET text = $1
-//        WHERE feedback_id = $2`,
-//       [feedback.text, feedback.feedback_id]
-//     );
-//   } else {
-//     await pool.query(
-//       `INSERT INTO feedbacks (text) 
-//        VALUES ($1)`,
-//       [feedback.text]
-//     );
-//   }
-// }
-
-export async function updateOrCreateMediaProperties(
+export async function updateOrCreateNavigationRule(
   pool: Pool,
-  mediaProperties: MediaProperties
+  rule: NavigationRule
 ) {
-  const { alignment, width } = mediaProperties;
-
-  // Assuming there is a unique constraint on (alignment, width)
-  const insertQuery = `
-    INSERT INTO media_properties (alignment, width)
-    VALUES ($1, $2)
-    ON CONFLICT (alignment, width) 
-    DO UPDATE SET alignment = EXCLUDED.alignment, width = EXCLUDED.width
-    RETURNING properties_id;
-  `;
-  const result = await pool.query<{ properties_id: number }>(insertQuery, [alignment, width]);
-
-  return result.rows[0].properties_id;
-}
-
-export async function updateOrCreateNavigationRule(pool: Pool, rule: NavigationRule) {
   await pool.query(
     `INSERT INTO navigation_rules (section_id, target_section_id, condition)
      VALUES ($1, $2, $3)
@@ -85,33 +50,6 @@ export async function updateOrCreateNavigationRule(pool: Pool, rule: NavigationR
     [rule.section_id, rule.target_section_id, rule.condition]
   );
 }
-
-
-
-
-// export async function handleSection(
-//   pool: Pool,
-//   form_id: number,
-//   section: Section,
-//   is_template: boolean
-// ) {
-//   const sectionResult = await pool.query<{ section_id: number }>(
-//     `INSERT INTO sections (form_id, title, description, seq_order, is_template) 
-//      VALUES ($1, $2, $3, $4, $5) 
-//      ON CONFLICT (form_id, seq_order, is_template) 
-//      DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description 
-//      RETURNING section_id`,
-//     [
-//       form_id,
-//       section.title,
-//       section.description,
-//       section.seq_order,
-//       is_template,
-//     ]
-//   );
-//   return sectionResult.rows[0].section_id;
-// }
-
 
 export async function handleSection(
   pool: Pool,
@@ -128,10 +66,6 @@ export async function handleSection(
   );
   return sectionResult.rows[0].section_id;
 }
-
-
-
-
 
 export async function handleItem(
   pool: Pool,
@@ -165,6 +99,7 @@ export async function handleItem(
     }
   }
 }
+
 export async function handleQuestion(
   pool: Pool,
   question: Question,
@@ -247,6 +182,7 @@ export async function handleChoiceQuestion(
     );
   }
 }
+
 export async function validateImageId(pool: Pool, image_id: number) {
   if (image_id === null || image_id === undefined) {
     return null;
@@ -268,10 +204,10 @@ export async function handleGrading(
 ): Promise<number> {
   const gradingResult = await pool.query<{ grading_id: number }>(
     `INSERT INTO gradings (point_value, when_right, when_wrong, general_feedback, answer_key, auto_feedback)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING grading_id`,
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING grading_id`,
     [
       grading.point_value,
-      grading.when_right, 
+      grading.when_right,
       grading.when_wrong,
       grading.general_feedback,
       grading.answer_key,
@@ -280,37 +216,6 @@ export async function handleGrading(
   );
   return gradingResult.rows[0].grading_id;
 }
-
-// export async function ensureFeedbackExists(pool: Pool, feedbackIds: number[]) {
-//   const resultIds: FeedbackIds = {
-//     when_right: null,
-//     when_wrong: null,
-//     general_feedback: null,
-//   };
-
-//   for (let i = 0; i < feedbackIds.length; i++) {
-//     let id = feedbackIds[i];
-//     if (id) {
-//       const feedbackCheck = await pool.query(
-//         `SELECT feedback_id FROM feedbacks WHERE feedback_id = $1`,
-//         [id]
-//       );
-//       if (feedbackCheck.rows.length === 0) {
-//         const insertFeedback = await pool.query<{
-//           feedback_id: number;
-//         }>(
-//           `INSERT INTO feedbacks (text) VALUES ('Default feedback') RETURNING feedback_id`
-//         );
-//         id = insertFeedback.rows[0].feedback_id;
-//       }
-//       if (i === 0) resultIds.when_right = id;
-//       if (i === 1) resultIds.when_wrong = id;
-//       if (i === 2) resultIds.general_feedback = id;
-//     }
-//   }
-
-//   return resultIds;
-// }
 
 export async function sendSubmissionConfirmation(
   recipientEmail: string,
@@ -377,7 +282,9 @@ export async function sendNewResponseAlert(
   );
 }
 
-export async function getFormOwnerEmail(form_id: number): Promise<string | null> {
+export async function getFormOwnerEmail(
+  form_id: number
+): Promise<string | null> {
   const result = await pool.query<{ email: string }>(
     "SELECT email FROM users WHERE user_id = (SELECT owner_id FROM forms WHERE form_id = $1)",
     [form_id]
@@ -426,14 +333,18 @@ export async function fetchFormDetails(
                         SELECT json_agg(json_build_object(
                             'option_id', o.option_id,
                             'value', o.value,
-                            'image_id', o.image_id,
+                            'image', (SELECT json_build_object(
+                                'image_id', img.image_id,
+                                'content_uri', img.content_uri,
+                                'alt_text', img.alt_text,
+                                'source_uri', img.source_uri,
+                                'alignment', img.alignment,
+                                'width', img.width
+                            ) FROM images img WHERE img.image_id = o.image_id),
                             'is_other', o.is_other,
                             'goto_action', o.goto_action,
-                            'media_properties', (SELECT json_build_object(
-                                'alignment', mp.alignment,
-                                'width', mp.width
-                            ) FROM media_properties mp WHERE mp.properties_id = i.properties_id)
-                        )) FROM options o LEFT JOIN images i ON o.image_id = i.image_id WHERE o.question_id = q.question_id
+                            'goto_section_id', o.goto_section_id
+                        )) FROM options o WHERE o.question_id = q.question_id
                     ) ELSE NULL END)
                 )) FROM questions q JOIN question_items qi ON q.question_id = qi.question_id WHERE qi.item_id = i.item_id)
             )) FROM items i WHERE i.section_id = s.section_id)
@@ -445,8 +356,24 @@ export async function fetchFormDetails(
             'target_section_id', nr.target_section_id,
             'condition', nr.condition
           )) FROM navigation_rules nr WHERE nr.section_id IN (SELECT section_id FROM sections WHERE form_id = f.form_id)
-        ) AS navigation_rules
-        -- Remove the 'feedbacks' part as it is not used anymore
+        ) AS navigation_rules,
+        (
+          SELECT json_agg(json_build_object(
+            'response_id', fr.response_id,
+            'responder_email', fr.responder_email,
+            'response_token', fr.response_token,
+            'created_at', fr.created_at,
+            'updated_at', fr.updated_at,
+            'total_score', fr.total_score,
+            'answers', (SELECT json_agg(json_build_object(
+              'answer_id', a.answer_id,
+              'question_id', a.question_id,
+              'value', a.value,
+              'score', a.score,
+              'feedback', a.feedback
+            )) FROM answers a WHERE a.response_id = fr.response_id)
+          )) FROM form_responses fr WHERE fr.form_id = f.form_id
+        ) AS responses
     FROM forms f
     LEFT JOIN form_versions fv ON f.form_id = fv.form_id AND fv.version_id = COALESCE($2, f.active_version_id)
     LEFT JOIN sections s ON f.form_id = s.form_id
@@ -460,10 +387,28 @@ export async function fetchFormDetails(
 }
 
 
+
+
+// 1. Fetching the Question Details:
+
+// Query the questions table to get details about the question.
+// Query the gradings table if grading_id is present in the question.
+// Query the options table if the question type is CHOICE_QUESTION.
+// Ensure all fetched data is correctly structured and returned.
+
+
+// 2. Adjustments for Consistency and Correctness:
+
+// Ensure we handle potential cases where there might be no options for choice questions.
+// Fix the incorrect access of choiceType which should be retrieved from choice_questions.
+
+
+
 export async function fetchQuestionDetails(
   pool: Pool,
   item_id: number
 ): Promise<Question | undefined> {
+  // Fetch question details
   const questionResult = await pool.query<{
     question_id: number;
     required: boolean;
@@ -475,7 +420,7 @@ export async function fetchQuestionDetails(
       | "TIME_QUESTION"
       | "FILE_UPLOAD_QUESTION"
       | "ROW_QUESTION";
-    grading_id: number;
+    grading_id: number | null;
   }>(
     `SELECT q.question_id, q.required, q.kind, q.grading_id
      FROM questions q
@@ -489,23 +434,26 @@ export async function fetchQuestionDetails(
   }
 
   const question = questionResult.rows[0];
+
+  // Fetch grading details if available
   const gradingResult = question.grading_id
     ? await pool.query<{
         grading_id: number;
         point_value: number;
-        when_right: number;
-        when_wrong: number;
-        general_feedback: number;
+        when_right: string;
+        when_wrong: string;
+        general_feedback: string;
         answer_key: string;
         auto_feedback: boolean;
       }>(
         `SELECT grading_id, point_value, when_right, when_wrong, general_feedback, answer_key, auto_feedback
-     FROM gradings
-     WHERE grading_id = $1`,
+         FROM gradings
+         WHERE grading_id = $1`,
         [question.grading_id]
       )
     : undefined;
 
+  // Fetch options if the question is of type CHOICE_QUESTION
   const optionsResult =
     question.kind === "CHOICE_QUESTION"
       ? await pool.query<{
@@ -519,26 +467,41 @@ export async function fetchQuestionDetails(
             | "SUBMIT_FORM"
             | "GO_TO_ACTION_UNSPECIFIED"
             | null;
+          type: "RADIO" | "CHECKBOX" | "DROP_DOWN" | "CHOICE_TYPE_UNSPECIFIED";
+          shuffle: boolean;
         }>(
-          `SELECT option_id, value, image_id, is_other, goto_action
-     FROM options
-     WHERE question_id = $1`,
+          `SELECT o.option_id, o.value, o.image_id, o.is_other, o.goto_action, cq.type, cq.shuffle
+           FROM options o
+           JOIN choice_questions cq ON cq.question_id = o.question_id
+           WHERE o.question_id = $1`,
           [question.question_id]
         )
       : undefined;
 
+  let options: QuestionOptions | undefined;
+  if (optionsResult && optionsResult.rowCount !== null) {
+    const choiceQuestion = optionsResult.rows[0];
+    options = {
+      type: choiceQuestion.type,
+      shuffle: choiceQuestion.shuffle,
+      choices: optionsResult.rows.map((option) => ({
+        option_id: option.option_id,
+        value: option.value,
+        image_id: option.image_id,
+        is_other: option.is_other,
+        goto_action: option.goto_action,
+      })),
+    };
+  }
+
   return {
     ...question,
     grading: gradingResult ? gradingResult.rows[0] : undefined,
-    options: optionsResult
-      ? {
-          type: "RADIO",
-          shuffle: false,
-          choices: optionsResult.rows,
-        }
-      : undefined,
+    options,
   };
 }
+
+
 
 export const getSpecificFormResponse = async (req: Request, res: Response) => {
   const { form_id, response_id } = req.params;
@@ -573,8 +536,7 @@ export async function checkAuthorization(
         SELECT EXISTS (
             SELECT 1 
             FROM form_user_roles fur
-            JOIN roles r ON fur.role_id = r.role_id
-            WHERE fur.form_id = $1 AND fur.user_id = $2 AND r.name IN ('Owner', 'Editor')
+            WHERE fur.form_id = $1 AND fur.user_id = $2 AND fur.role IN ('OWNER', 'EDITOR')
         )
     `;
 
@@ -602,7 +564,6 @@ export async function handleVersionConflict(
   const currentActiveRevisionId = result.rows[0].revision_id;
   return currentActiveRevisionId !== old_revision_id;
 }
-
 
 export const incrementVersion = (currentVersion: string) => {
   const versionParts = currentVersion.substring(1).split(".");
