@@ -26,7 +26,9 @@ export const authenticateUser = async (
 
     if (rows.length > 0) {
       req.user = rows[0];
+
       next();
+  
     } else {
       throw new HttpError("User not found!", 404);
     }
