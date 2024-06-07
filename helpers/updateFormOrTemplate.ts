@@ -24,7 +24,7 @@ export async function updateFormOrTemplate(
     is_quiz: boolean;
     sections: Section[];
     settings: {
-      update_window_hours: number;
+      response_update_window: number;
       wants_email_updates: boolean;
     };
     feedbacks: Feedback[];
@@ -83,7 +83,6 @@ export async function updateFormOrTemplate(
        WHERE form_id = $6 AND owner_id = $7`,
       [title, description, category_id, is_public, is_quiz, form_id, user_id]
     );
-
 
     for (const section of sections) {
       const section_id = await handleSection(pool, form_id, section);

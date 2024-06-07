@@ -12,7 +12,7 @@ router.get(
       const result = await pool.query(`
         SELECT f.form_id AS template_id, f.is_public, f.created_at, f.updated_at,
                tc.name AS category_name, u.email AS owner_email, f.title, f.description,
-               f.is_quiz, f.update_window_hours, f.wants_email_updates
+               f.is_quiz, f.response_update_window, f.wants_email_updates
         FROM forms f
         JOIN template_categories tc ON f.category_id = tc.category_id
         JOIN users u ON f.owner_id = u.user_id

@@ -5,7 +5,11 @@ import { AuthRequest, authenticateUser } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
 import { checkSuperAdmin } from "../../utils/checkSuperAdmin";
-import { handleItem, handleSection, updateOrCreateSettings } from "../../helpers/forms/formControllerHelpers";
+import {
+  handleItem,
+  handleSection,
+  updateOrCreateSettings,
+} from "../../helpers/forms/formControllerHelpers";
 import { QuizSettings, Section } from "../../types";
 
 const router = Router();
@@ -48,7 +52,7 @@ router.post(
       const templateDetails = await pool.query<{ template_id: number }>(
         `SELECT t.template_id, t.category_id, t.owner_id, t.info_id, t.settings_id, t.is_public,
                 fi.title AS form_title, fi.description AS form_description, 
-                fs.update_window_hours, fs.wants_email_updates, 
+                fs.response_update_window, fs.wants_email_updates, 
                 c.name AS category_name
          FROM templates t
          JOIN form_info fi ON t.info_id = fi.info_id
@@ -108,7 +112,7 @@ router.post(
       const templateDetails = await pool.query<{ template_id: number }>(
         `SELECT t.template_id, t.category_id, t.owner_id, t.info_id, t.settings_id, t.is_public,
                 fi.title AS form_title, fi.description AS form_description, 
-                fs.update_window_hours, fs.wants_email_updates, 
+                fs.response_update_window, fs.wants_email_updates, 
                 c.name AS category_name
          FROM templates t
          JOIN form_info fi ON t.info_id = fi.info_id
@@ -229,11 +233,9 @@ router.get(
 );
 
 //Get all templates
-router.get(
-  "/",
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const result = await pool.query(`
+router.get("/", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await pool.query(`
         SELECT t.template_id, t.is_public, t.created_at, t.updated_at,
                tc.name AS category_name, u.email AS owner_email, fi.title, fi.description
         FROM templates t
@@ -242,13 +244,11 @@ router.get(
         JOIN form_info fi ON t.info_id = fi.info_id
       `);
 
-      res.status(200).json(result.rows);
-    } catch (error) {
-      next(error);
-    }
+    res.status(200).json(result.rows);
+  } catch (error) {
+    next(error);
   }
-);
-
+});
 
 router.get(
   "/templates/:template_id/preview",

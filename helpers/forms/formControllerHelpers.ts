@@ -17,7 +17,7 @@ import HttpError from "../../utils/httpError";
 export async function updateOrCreateSettings(
   pool: Pool,
   settings: {
-    update_window_hours: number;
+    response_update_window: number;
     wants_email_updates: boolean;
     is_quiz: boolean;
   },
@@ -25,12 +25,12 @@ export async function updateOrCreateSettings(
 ) {
   await pool.query(
     `UPDATE forms
-     SET update_window_hours = $1,
+     SET response_update_window = $1,
          wants_email_updates = $2,
          is_quiz = $3
      WHERE form_id = $4`,
     [
-      settings.update_window_hours,
+      settings.response_update_window,
       settings.wants_email_updates,
       settings.is_quiz,
       form_id,
@@ -302,7 +302,7 @@ export async function fetchFormDetails(
         f.form_id, f.title, f.description, 
         json_build_object(
             'is_quiz', f.is_quiz,
-            'update_window_hours', COALESCE(f.update_window_hours, 24),
+            'response_update_window', COALESCE(f.response_update_window, 24),
             'wants_email_updates', COALESCE(f.wants_email_updates, false)
         ) as settings,
         fv.revision_id,
@@ -378,16 +378,13 @@ export async function fetchFormDetails(
     LEFT JOIN form_versions fv ON f.form_id = fv.form_id AND fv.version_id = COALESCE($2, f.active_version_id)
     LEFT JOIN sections s ON f.form_id = s.form_id
     WHERE f.form_id = $1
-    GROUP BY f.form_id, f.title, f.description, f.is_quiz, f.update_window_hours, f.wants_email_updates, fv.revision_id
+    GROUP BY f.form_id, f.title, f.description, f.is_quiz, f.response_update_window, f.wants_email_updates, fv.revision_id
   `;
 
   const details = await pool.query<FormDetails>(query, [form_id, version_id]);
 
   return details.rows.length ? details.rows[0] : null;
 }
-
-
-
 
 // 1. Fetching the Question Details:
 
@@ -396,13 +393,10 @@ export async function fetchFormDetails(
 // Query the options table if the question type is CHOICE_QUESTION.
 // Ensure all fetched data is correctly structured and returned.
 
-
 // 2. Adjustments for Consistency and Correctness:
 
 // Ensure we handle potential cases where there might be no options for choice questions.
 // Fix the incorrect access of choiceType which should be retrieved from choice_questions.
-
-
 
 export async function fetchQuestionDetails(
   pool: Pool,
@@ -500,8 +494,6 @@ export async function fetchQuestionDetails(
     options,
   };
 }
-
-
 
 export const getSpecificFormResponse = async (req: Request, res: Response) => {
   const { form_id, response_id } = req.params;

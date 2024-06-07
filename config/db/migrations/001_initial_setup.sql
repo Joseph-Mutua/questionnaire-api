@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS form_versions (
     version_id SERIAL PRIMARY KEY,
     form_id INTEGER NOT NULL,
     revision_id TEXT NOT NULL DEFAULT 'v1.0',
-    content JSONB NOT NULL,
+    content JSONB NOT NULL,  --TODO: drop
     is_active BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS forms (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     active_version_id INTEGER,
-    update_window_hours INTEGER DEFAULT 0,
+    response_update_window INTEGER DEFAULT 0,
     wants_email_updates BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (active_version_id) REFERENCES form_versions(version_id)
 );

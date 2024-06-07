@@ -1,6 +1,6 @@
 export type QuizSettings = {
   is_quiz: boolean;
-  update_window_hours: number | null;
+  response_update_window: number | null;
   wants_email_updates: boolean;
   quiz_settings_id?: number;
 };
@@ -21,7 +21,6 @@ export interface Grading {
   auto_feedback: boolean;
 }
 
-
 export interface Question {
   question_id: number;
   required: boolean;
@@ -37,7 +36,6 @@ export interface Question {
   grading?: Grading;
   options?: QuestionOptions;
 }
-
 
 export interface QuestionOptions {
   type: "RADIO" | "CHECKBOX" | "DROP_DOWN" | "CHOICE_TYPE_UNSPECIFIED";
@@ -125,7 +123,7 @@ export interface FormDetails {
   description: string;
   settings: {
     is_quiz: boolean;
-    update_window_hours: number;
+    response_update_window: number;
     wants_email_updates: boolean;
   };
   revision_id: string;

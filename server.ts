@@ -4,7 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import "express-async-errors";
-import { runMigrations } from "./config/db/migration";
+import { runMigrations } from "./config/db";
 import { Server as HTTPServer } from "http";
 import { Server as SocketServer } from "socket.io";
 import { ExtendedError } from "socket.io/dist/namespace";
@@ -23,7 +23,7 @@ const app: Express = express();
 const httpServer = new HTTPServer(app);
 const io = new SocketServer(httpServer, {
   cors: {
-    origin: ["http://localhost:3000", "http://localhost:5173"],
+    origin: ["http://localhost:3001", "http://localhost:5173"],
     credentials: true,
   },
 });

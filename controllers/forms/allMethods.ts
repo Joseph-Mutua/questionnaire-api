@@ -14,11 +14,7 @@ import {
   sendSubmissionConfirmation,
 } from "../../helpers/forms/formControllerHelpers";
 
-import {
-  FormDetailsRequestBody,
-  FormResponseBody,
-
-} from "../../types";
+import { FormDetailsRequestBody, FormResponseBody } from "../../types";
 import { inviteUser, isOwner } from "../../helpers/users/userControllerHelpers";
 import asyncHandler from "../../utils/asyncHandler";
 import { createFormOrTemplate } from "../../helpers/createFormOrTemplate";
@@ -39,12 +35,10 @@ router.post(
     };
 
     try {
-      const result = await createFormOrTemplate(
-        pool,
-        user_id!,
-        { title, description },
-        false
-      );
+      const result = await createFormOrTemplate(pool, user_id!, {
+        title,
+        description,
+      });
       res.status(201).json(result);
     } catch (error) {
       next(error);
@@ -150,7 +144,6 @@ router.get(
     }
   })
 );
-
 
 //Fetch all form responses
 router.get(
@@ -298,7 +291,6 @@ router.get(
   })
 );
 
-
 //Get Form response by token
 router.get(
   "/:form_id/responses/:responseId/token",
@@ -335,7 +327,6 @@ router.get(
     }
   })
 );
-
 
 //Get Specific Form Response
 router.get(
@@ -465,7 +456,7 @@ router.post(
         return;
       }
 
-      const insertResponseQuery =`
+      const insertResponseQuery = `
         INSERT INTO form_responses (form_id, version_id, responder_email, created_at, updated_at, total_score)
         VALUES ($1, $2, $3, NOW(), NOW(), 0)
         RETURNING response_id;
@@ -621,7 +612,7 @@ router.patch(
     await pool.query("BEGIN");
 
     const permissionCheckQuery = `
-        SELECT fr.response_id, fr.created_at, fs.update_window_hours
+        SELECT fr.response_id, fr.created_at, fs.response_update_window
         FROM form_responses fr
         JOIN forms f ON f.form_id = fr.form_id
         JOIN form_settings fs ON fs.settings_id = f.settings_id
@@ -629,7 +620,7 @@ router.patch(
       `;
     const permissionResult = await pool.query<{
       created_at: string;
-      update_window_hours: number;
+      response_update_window: number;
     }>(permissionCheckQuery, [form_id, response_id, user_id]);
 
     if (permissionResult.rowCount === 0) {
@@ -639,11 +630,11 @@ router.patch(
       );
     }
 
-    const { created_at, update_window_hours } = permissionResult.rows[0];
+    const { created_at, response_update_window } = permissionResult.rows[0];
     const currentTime = new Date();
     const responseCreateTime = new Date(created_at);
     const expiryTime = new Date(
-      responseCreateTime.getTime() + update_window_hours * 3600000
+      responseCreateTime.getTime() + response_update_window * 3600000
     );
 
     if (currentTime > expiryTime) {

@@ -137,7 +137,7 @@
 ## Relationships
 
 - **Users** to **Forms**: One-to-Many (A user can own multiple forms)
-- **Forms** to **FormInfo**: Many-to-One (Each form is linked to one form info)
+- **Forms** to **FormInfo**: One-to-One (Each form is linked to one form info)
 - **Forms** to **Sections**: One-to-Many (A form can have multiple sections)
 - **Sections** to **NavigationRules**: One-to-Many (A section can have multiple navigation rules targeting other sections)
 - **Forms** to **Items**: One-to-Many (A form can contain multiple items)
@@ -166,4 +166,3 @@ Here is a simplified sketch of how these entities might be represented in an ERD
 | |
 
 > -- [FormResponses] --< [Answers]
-

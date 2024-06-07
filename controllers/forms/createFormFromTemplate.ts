@@ -29,10 +29,10 @@ router.post(
         title: string;
         description: string;
         is_quiz: boolean;
-        update_window_hours: number;
+        response_update_window: number;
         wants_email_updates: boolean;
       }>(
-        `SELECT title, description, is_quiz, update_window_hours, wants_email_updates 
+        `SELECT title, description, is_quiz, response_update_window, wants_email_updates 
          FROM forms 
          WHERE form_id = $1 AND is_template = TRUE`,
         [template_id]
@@ -46,12 +46,12 @@ router.post(
         title,
         description,
         is_quiz,
-        update_window_hours,
+        response_update_window,
         wants_email_updates,
       } = templateResult.rows[0];
 
       const formResult = await pool.query<{ form_id: number }>(
-        `INSERT INTO forms (owner_id, title, description, is_template, is_public, created_at, updated_at, is_quiz, update_window_hours, wants_email_updates)
+        `INSERT INTO forms (owner_id, title, description, is_template, is_public, created_at, updated_at, is_quiz, response_update_window, wants_email_updates)
          VALUES ($1, $2, $3, FALSE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $4, $5, $6)
          RETURNING form_id`,
         [
@@ -59,7 +59,7 @@ router.post(
           title,
           description,
           is_quiz,
-          update_window_hours,
+          response_update_window,
           wants_email_updates,
         ]
       );
@@ -84,16 +84,12 @@ router.post(
       );
 
       for (const section of sectionsResult.rows) {
-        const newSectionId = await handleSection(
-          pool,
-          form_id,
-          {
-            title: section.title,
-            description: section.description,
-            seq_order: section.seq_order,
-            items: [],
-          },
-        );
+        const newSectionId = await handleSection(pool, form_id, {
+          title: section.title,
+          description: section.description,
+          seq_order: section.seq_order,
+          items: [],
+        });
 
         const itemsResult = await pool.query<{
           item_id: number;
