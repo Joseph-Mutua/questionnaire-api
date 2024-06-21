@@ -1,20 +1,15 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
-
 import { Router, Response, NextFunction } from "express";
 import { AuthRequest, authenticateUser } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
-
 import { pool } from "../../config/db";
+import jwt from "jsonwebtoken";
+import asyncHandler from "../../utils/asyncHandler";
 
 const router = Router();
 
 // Generate Sharing Link for Active Form Version
-import jwt from "jsonwebtoken";
-import asyncHandler from "../../utils/asyncHandler";
-
 router.get(
   "/:form_id/share-link",
-
   asyncHandler(authenticateUser),
   asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
     const { form_id } = req.params;
@@ -27,20 +22,16 @@ router.get(
     try {
       await pool.query("BEGIN");
 
-      const result = await pool.query<{ active_version_id: number }>(
-        "SELECT active_version_id FROM forms WHERE form_id = $1",
+      const result = await pool.query<{ revision_id: number }>(
+        "SELECT revision_id FROM form_versions WHERE form_id = $1 AND is_active = TRUE",
         [form_id]
       );
 
       if (result.rows.length === 0) {
-        throw new HttpError("Form not found.", 404);
+        throw new HttpError("Form not found or no active version.", 404);
       }
 
-      const activeVersionId = result.rows[0].active_version_id;
-
-      if (!activeVersionId) {
-        throw new HttpError("Active version not set for this form.", 404);
-      }
+      const activeVersionId = result.rows[0].revision_id;
 
       const payload = {
         form_id: form_id,
@@ -64,6 +55,5 @@ router.get(
     }
   })
 );
-
 
 export default router;

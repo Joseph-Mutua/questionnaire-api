@@ -2,8 +2,6 @@ import { Pool } from "pg";
 import { Response, NextFunction } from "express";
 import {
   fetchFormDetails,
-  handleItem,
-  handleSection,
   incrementVersion,
   updateOrCreateNavigationRule,
 } from "../helpers/forms/formControllerHelpers";
@@ -39,7 +37,7 @@ export async function updateFormOrTemplate(
     category_id,
     is_public,
     is_quiz,
-    sections,
+    // sections,
     navigation_rules,
   } = body;
 
@@ -84,12 +82,12 @@ export async function updateFormOrTemplate(
       [title, description, category_id, is_public, is_quiz, form_id, user_id]
     );
 
-    for (const section of sections) {
-      const section_id = await handleSection(pool, form_id, section);
-      for (const item of section.items) {
-        await handleItem(pool, form_id, section_id, item, !isTemplate);
-      }
-    }
+    // for (const section of sections) {
+    //   const section_id = await handleSection(pool, form_id, section);
+    //   for (const item of section.items) {
+    //     await handleItem(pool, form_id, section_id, item, !isTemplate);
+    //   }
+    // }
 
     if (navigation_rules) {
       for (const rule of navigation_rules) {

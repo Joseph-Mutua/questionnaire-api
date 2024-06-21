@@ -2,7 +2,6 @@ import { Router, Response, NextFunction } from "express";
 import { AuthRequest, authenticateUser } from "../../middleware/auth";
 import HttpError from "../../utils/httpError";
 import { pool } from "../../config/db";
-
 import { fetchFormDetails } from "../../helpers/forms/formControllerHelpers";
 import asyncHandler from "../../utils/asyncHandler";
 
@@ -10,7 +9,6 @@ const router = Router();
 
 router.get(
   "/:form_id",
-
   asyncHandler(authenticateUser),
   asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
     const form_id = parseInt(req.params.form_id);
@@ -26,9 +24,9 @@ router.get(
     try {
       await pool.query("BEGIN");
       const roleCheckQuery = `
-    SELECT role FROM form_user_roles
-    WHERE form_id = $1 AND user_id = $2;
-  `;
+        SELECT role FROM form_user_roles
+        WHERE form_id = $1 AND user_id = $2;
+      `;
       const roleResult = await pool.query<{ role: string }>(roleCheckQuery, [
         form_id,
         user_id,
@@ -56,8 +54,8 @@ router.get(
       await pool.query("ROLLBACK");
       next(error);
     }
+    
   })
 );
-
 
 export default router;

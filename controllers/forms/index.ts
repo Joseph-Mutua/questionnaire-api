@@ -9,14 +9,14 @@ import generateSharingLink from "./generateSharingLink";
 import submitFormResponse from "./submitFormResponse";
 import getFormResponseByToken from "./getFormResponseByToken";
 import getAllFormResponses from "./getAllFormResponses";
-import createFormFromTemplate from "./createFormFromTemplate";
+//import createFormFromTemplate from "./createFormFromTemplate";
 
 
 
 const router = Router();
 
 router.use(createNewForm);
-router.use(createFormFromTemplate)
+//router.use(createFormFromTemplate)
 router.use(getFormByToken);
 router.use(getForm);
 router.use(deleteForm);

@@ -1,4 +1,3 @@
-
 import dotenv from "dotenv";
 import { Pool } from "pg";
 import fs from "fs";
@@ -12,13 +11,14 @@ export const pool = new Pool({
   database: process.env.DB_DATABASE,
   password: process.env.DB_PASSWORD,
   port: parseInt(process.env.DB_PORT || "5432"),
-  max: 20, 
-  idleTimeoutMillis: 30000, 
+  max: 20,
+  idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
 
 export const runMigrations = async () => {
   const client = await pool.connect();
+
   try {
     const migrations = fs
       .readdirSync(path.join(__dirname, "migrations"))

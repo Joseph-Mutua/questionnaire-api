@@ -1,4 +1,3 @@
--- Insert a user if not exists with a role
 DO $$
 DECLARE
     super_admin_id INTEGER;

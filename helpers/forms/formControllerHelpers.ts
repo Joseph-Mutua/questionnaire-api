@@ -1,5 +1,5 @@
 import { Pool } from "pg";
-import { Request, Response } from "express";
+import {  Response } from "express";
 import jwt from "jsonwebtoken";
 import {
   FormDetails,
@@ -51,59 +51,67 @@ export async function updateOrCreateNavigationRule(
   );
 }
 
+
 export async function handleSection(
   pool: Pool,
   form_id: number,
+  revision_id: number,
   section: Section
 ) {
   const sectionResult = await pool.query<{ section_id: number }>(
-    `INSERT INTO sections (form_id, title, description, seq_order) 
-     VALUES ($1, $2, $3, $4) 
-     ON CONFLICT (form_id, seq_order) 
+    `INSERT INTO sections (form_id, revision_id, title, description, seq_order) 
+     VALUES ($1, $2, $3, $4, $5) 
+     ON CONFLICT (form_id, seq_order, revision_id) 
      DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description 
      RETURNING section_id`,
-    [form_id, section.title, section.description, section.seq_order]
+    [
+      form_id,
+      revision_id,
+      section.title,
+      section.description,
+      section.seq_order,
+    ]
   );
   return sectionResult.rows[0].section_id;
 }
 
 export async function handleItem(
   pool: Pool,
-  id: number,
+  form_id: number,
   section_id: number,
-  item: Item,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  isForm: boolean
+  revision_id: number,
+  item: Item
 ) {
-  const idField = "form_id";
-
   const itemResult = await pool.query<{ item_id: number }>(
-    `INSERT INTO items (${idField}, section_id, title, description, kind) 
-     VALUES ($1, $2, $3, $4, $5) 
-     ON CONFLICT (${idField}, title) 
+    `INSERT INTO items (form_id, section_id, revision_id, title, description, kind) 
+     VALUES ($1, $2, $3, $4, $5, $6) 
+     ON CONFLICT (form_id, title, revision_id) 
      DO UPDATE SET
      description = EXCLUDED.description, 
      kind = EXCLUDED.kind, 
      section_id = EXCLUDED.section_id 
      RETURNING item_id`,
-    [id, section_id, item.title, item.description, item.kind]
+    [form_id, section_id, revision_id, item.title, item.description, item.kind]
   );
 
   const item_id = itemResult.rows[0].item_id;
 
   if (item.kind === "QUESTION_ITEM" && item.question) {
-    await handleQuestion(pool, item.question, item_id);
+    await handleQuestion(pool, form_id, item.question, item_id, revision_id);
   } else if (item.kind === "QUESTION_GROUP_ITEM" && item.questions) {
     for (const question of item.questions) {
-      await handleQuestion(pool, question, item_id);
+      await handleQuestion(pool, form_id, question, item_id, revision_id);
     }
   }
 }
 
+
 export async function handleQuestion(
   pool: Pool,
+  form_id: number,
   question: Question,
-  item_id: number
+  item_id: number,
+  revision_id: number
 ) {
   let question_id;
 
@@ -118,13 +126,26 @@ export async function handleQuestion(
     question_id = existingQuestion.rows[0].question_id;
 
     await pool.query(
-      `UPDATE questions SET required = $1, kind = $2 WHERE question_id = $3`,
-      [question.required, question.kind, question_id]
+      `UPDATE questions SET required = $1, kind = $2, grading_id = $3 WHERE question_id = $4`,
+      [
+        question.required,
+        question.kind,
+        question.grading_id || null,
+        question_id,
+      ]
     );
   } else {
     const questionResult = await pool.query<{ question_id: number }>(
-      `INSERT INTO questions (required, kind) VALUES ($1, $2) RETURNING question_id`,
-      [question.required, question.kind]
+      `INSERT INTO questions (form_id, item_id, revision_id, required, kind, grading_id) 
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING question_id`,
+      [
+        form_id,
+        item_id,
+        revision_id,
+        question.required,
+        question.kind,
+        question.grading_id || null,
+      ]
     );
     question_id = questionResult.rows[0].question_id;
 
@@ -223,7 +244,7 @@ export async function sendSubmissionConfirmation(
   form_id: number,
   responseToken: string
 ) {
-  const responseLink = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/${form_id}/responses/${responseId}/token?response_token=${responseToken}`;
+  const responseLink = `${process.env.APP_DOMAIN_NAME}/api/v1/forms/${form_id}/responses/token?response_token=${responseToken}`;
 
   const confirmationTemplate = loadEmailTemplate(
     "respondentSubmissionConfirmation",
@@ -292,18 +313,19 @@ export async function getFormOwnerEmail(
   return result.rows[0]?.email ?? null;
 }
 
+
 export async function fetchFormDetails(
   pool: Pool,
   form_id: number,
-  version_id?: number
+  revision_id?: number
 ): Promise<FormDetails | null> {
   const query = `
     SELECT 
         f.form_id, f.title, f.description, 
         json_build_object(
             'is_quiz', f.is_quiz,
-            'response_update_window', COALESCE(f.response_update_window, 24),
-            'wants_email_updates', COALESCE(f.wants_email_updates, false)
+            'response_update_window', f.response_update_window,
+            'wants_email_updates', f.wants_email_updates
         ) as settings,
         fv.revision_id,
         json_agg(json_build_object(
@@ -339,7 +361,8 @@ export async function fetchFormDetails(
                                 'alt_text', img.alt_text,
                                 'source_uri', img.source_uri,
                                 'alignment', img.alignment,
-                                'width', img.width
+                                'width', img.width,
+                                'owner_id', img.owner_id
                             ) FROM images img WHERE img.image_id = o.image_id),
                             'is_other', o.is_other,
                             'goto_action', o.goto_action,
@@ -375,16 +398,18 @@ export async function fetchFormDetails(
           )) FROM form_responses fr WHERE fr.form_id = f.form_id
         ) AS responses
     FROM forms f
-    LEFT JOIN form_versions fv ON f.form_id = fv.form_id AND fv.version_id = COALESCE($2, f.active_version_id)
-    LEFT JOIN sections s ON f.form_id = s.form_id
+    LEFT JOIN form_versions fv ON f.form_id = fv.form_id AND fv.revision_id = COALESCE($2, (SELECT revision_id FROM form_versions WHERE form_id = f.form_id AND is_active = TRUE LIMIT 1))
+    LEFT JOIN sections s ON f.form_id = s.form_id AND s.revision_id = fv.revision_id
     WHERE f.form_id = $1
     GROUP BY f.form_id, f.title, f.description, f.is_quiz, f.response_update_window, f.wants_email_updates, fv.revision_id
   `;
 
-  const details = await pool.query<FormDetails>(query, [form_id, version_id]);
+  const details = await pool.query<FormDetails>(query, [form_id, revision_id]);
 
   return details.rows.length ? details.rows[0] : null;
 }
+
+
 
 // 1. Fetching the Question Details:
 
@@ -473,6 +498,7 @@ export async function fetchQuestionDetails(
       : undefined;
 
   let options: QuestionOptions | undefined;
+
   if (optionsResult && optionsResult.rowCount !== null) {
     const choiceQuestion = optionsResult.rows[0];
     options = {
@@ -493,10 +519,11 @@ export async function fetchQuestionDetails(
     grading: gradingResult ? gradingResult.rows[0] : undefined,
     options,
   };
+  
 }
 
-export const getSpecificFormResponse = async (req: Request, res: Response) => {
-  const { form_id, response_id } = req.params;
+export const getSpecificFormResponse = async (form_id: number, response_id: number, res: Response) => {
+ // const { form_id, response_id } = req.params;
 
   const query = `
             SELECT r.response_id, r.form_id, r.responder_email, r.created_at, r.updated_at, r.total_score, 
@@ -557,7 +584,11 @@ export async function handleVersionConflict(
   return currentActiveRevisionId !== old_revision_id;
 }
 
-export const incrementVersion = (currentVersion: string) => {
+export const incrementVersion = (currentVersion: string | number) => {
+  if (typeof currentVersion === "number") {
+    currentVersion = `v${currentVersion}.0`;
+  }
+
   const versionParts = currentVersion.substring(1).split(".");
   let major = parseInt(versionParts[0]);
   let minor = parseInt(versionParts[1]);
@@ -570,6 +601,7 @@ export const incrementVersion = (currentVersion: string) => {
 
   return `v${major}.${minor}`;
 };
+
 
 export const generateToken = (user_id: string) => {
   return jwt.sign({ user_id }, process.env.JWT_SECRET!, { expiresIn: "24h" });

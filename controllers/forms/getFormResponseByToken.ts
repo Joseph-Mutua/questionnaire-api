@@ -9,7 +9,7 @@ const router = Router();
 
 //Get response by token
 router.get(
-  "/:form_id/responses/:responseId/token",
+  "/:form_id/responses/token",
   asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { response_token } = req.query as { response_token: string };
 
@@ -24,17 +24,21 @@ router.get(
       form_id: number;
     };
 
+    const { response_id, form_id } = decoded;
+
     try {
       await pool.query("BEGIN");
+
       const validationResult = await pool.query(
         "SELECT response_id FROM form_responses WHERE response_id = $1 AND form_id = $2 AND response_token = $3",
-        [decoded.response_id, decoded.form_id, response_token]
+        [response_id, form_id, response_token]
       );
 
       if (validationResult.rows.length === 0) {
         throw new HttpError("Invalid or expired token", 401);
       }
-      await getSpecificFormResponse(req, res);
+
+      await getSpecificFormResponse(form_id, response_id, res);
 
       await pool.query("COMMIT");
     } catch (error) {
